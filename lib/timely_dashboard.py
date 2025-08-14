@@ -192,11 +192,14 @@ elif selection == "🛡️ Moderation Center":
                 col1, col2 = st.columns([3, 1])
                 with col1:
                     st.subheader(f"Reason: {report['reason']}")
-                    st.caption(f"Report ID: {report['id']} | Date: {report['createdAt'].strftime('%Y-%m-%d %H:%M')}")
+                    # createdAt may be NaT; guard before strftime
+                    created = report.get('createdAt')
+                    created_str = created.strftime('%Y-%m-%d %H:%M') if hasattr(created, 'strftime') else str(created)
+                    st.caption(f"Report ID: {report['id']} | Date: {created_str}")
                 with col2:
                     new_status = st.selectbox("Update Status", options=['pending_review', 'resolved', 'dismissed'], index=['pending_review', 'resolved', 'dismissed'].index(report['status']), key=f"status_{report['id']}")
                     if st.button("Save", key=f"save_{report['id']}"):
-                        db.collection('reports').document(report['id']).update({'status': new_setup})
+                        db.collection('reports').document(report['id']).update({'status': new_status})
                         st.toast(f"Report {report['id']} updated!", icon="✅")
                         st.cache_data.clear()
                         st.rerun()
