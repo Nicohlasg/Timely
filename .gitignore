@@ -1,4 +1,4 @@
-# Miscellaneous
+# Misc
 *.class
 *.log
 *.pyc
@@ -10,21 +10,16 @@
 .history
 .svn/
 .swiftpm/
-.streamlit/secrets.toml
 migrate_working_dir/
 
-# IntelliJ related
+# IDE
 *.iml
 *.ipr
 *.iws
 .idea/
-
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
 #.vscode/
 
-# Flutter/Dart/Pub related
+# Flutter/Dart/Pub
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
@@ -32,39 +27,23 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-.env
-firebase_service_account.json
 /build/
 
-# Symbolication related
+# Symbolication / Obfuscation
 app.*.symbols
-
-# Obfuscation related
 app.*.map.json
 
-# Android Studio will place build artifacts here
+# Android build outputs
 /android/app/debug
 /android/app/profile
 /android/app/release
 
 # Local and secret files
 .env
-.env.* 
-*.env
-*.key
-*.pem
-*.crt
-*.p12
-*.json
+.env.*
 firebase_service_account.json
-.streamlit/secrets.toml
-secrets.toml
 credentials.json
 google-credentials.json
 private_key.pem
-# API key patterns
-apikeys.txt
-api_keys.txt
-
 .streamlit/
 lib/.streamlit/
