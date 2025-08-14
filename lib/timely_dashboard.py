@@ -2,12 +2,11 @@
 # To run: streamlit run timely_dashboard.py
 
 import json, os, hashlib
+from datetime import datetime
+import pandas as pd
 import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
-import pandas as pd
-import plotly.express as px
-from datetime import datetime, timedelta
 from google.api_core.exceptions import GoogleAPICallError, DeadlineExceeded, PermissionDenied, Unauthenticated
 
 # --- Configuration and Firebase Initialization ---
@@ -24,11 +23,8 @@ def _secret_fingerprint() -> str:
     """Changes when firebase_service_account changes, to refresh cached init."""
     if "firebase_service_account" in st.secrets:
         svc = st.secrets["firebase_service_account"]
-        if isinstance(svc, str):
-            src = svc
-        else:
-            src = json.dumps(dict(svc), sort_keys=True)
-        return hashlib.sha256(src.encode("utf-8")).hexdigest()[:12]
+        src = svc if isinstance(svc, str) else json.dumps(dict(svc), sort_keys=True)
+        return hashlib.sha256(src.encode()).hexdigest()[:12]
     # fallback to path if you use local file
     path = st.secrets.get("firebase_credentials_path") or os.environ.get("FIREBASE_CREDENTIALS_PATH") or ""
     return f"path:{path}"
@@ -55,6 +51,13 @@ def init_firebase(_fp: str):
         st.error(f"Failed to initialize Firebase: {e}")
         return None
 
+def current_project_id() -> str | None:
+    svc = st.secrets.get("firebase_service_account")
+    if not svc:
+        return None
+    info = json.loads(svc) if isinstance(svc, str) else dict(svc)
+    return info.get("project_id")
+
 # Manual cache clear for convenience
 with st.sidebar:
     if st.button("Clear cache and reconnect"):
@@ -74,7 +77,7 @@ if not db:
 with st.sidebar:
     max_docs = st.number_input(
         "Max docs per collection",
-        min_value=100, max_value=10000, value=2000, step=100,
+        min_value=100, max_value=10000, value=500, step=100,
         help="Caps how many documents are fetched from each Firestore collection."
     )
     st.session_state["max_docs"] = int(max_docs)
@@ -82,17 +85,18 @@ with st.sidebar:
 # --- Data Fetching Helpers (bounded, with timeout) ---
 
 @st.cache_data(ttl=600, show_spinner=False)
-def fetch_collection(name: str, limit: int = 2000, timeout_sec: float = 20.0) -> pd.DataFrame:
+def fetch_collection(name: str, limit: int = 500, timeout_sec: float = 15.0) -> pd.DataFrame:
     try:
-        docs = db.collection(name).limit(limit).get(timeout=timeout_sec)
-        items = []
+        q = firestore.Client().collection(name).limit(limit)  # use same client config under the hood
+        docs = list(q.stream(timeout=timeout_sec))
+        rows = []
         for d in docs:
-            data = d.to_dict() or {}
-            data["id"] = d.id
-            items.append(data)
-        return pd.DataFrame(items)
+            obj = d.to_dict() or {}
+            obj["id"] = d.id
+            rows.append(obj)
+        return pd.DataFrame(rows)
     except (DeadlineExceeded, PermissionDenied, Unauthenticated, GoogleAPICallError) as e:
-        st.warning(f"Could not load '{name}' (timeout/perm): {e}")
+        st.warning(f"Could not load '{name}': {e}")
         return pd.DataFrame()
     except Exception as e:
         st.warning(f"Error loading '{name}': {e}")
@@ -107,13 +111,13 @@ def parse_iso_string(s):
 
 # --- Main Dashboard App ---
 
-def main_dashboard():
+def main_dashboard(db):
     """Main function to build the Streamlit dashboard."""
     st.title("🗓️ Timely - Admin Dashboard")
     st.markdown("Welcome to the central hub for monitoring Timely's growth and user activity.")
 
     # Load data with clear, bounded spinners (use the global limit)
-    lim = st.session_state.get("max_docs", 2000)
+    lim = st.session_state.get("max_docs", 500)
     with st.spinner("Loading users..."):
         users_df = fetch_collection("users", limit=lim)
     with st.spinner("Loading events..."):
@@ -212,13 +216,13 @@ def main_dashboard():
         st.dataframe(reports_df)
 
 
-def moderation_page():
+def moderation_page(db):
     """Page for handling user reports and moderation."""
     st.title("🛡️ Moderation Center")
     st.markdown("Review and take action on user-submitted reports.")
 
     # Fetch reports directly (replace missing get_all_data)
-    lim = st.session_state.get("max_docs", 2000)
+    lim = st.session_state.get("max_docs", 500)
     reports_df = fetch_collection("reports", limit=lim)
     if "createdAt" in reports_df.columns:
         reports_df["createdAt"] = pd.to_datetime(reports_df["createdAt"], errors="coerce")
@@ -271,13 +275,9 @@ def moderation_page():
 
 # --- Page Navigation ---
 PAGES = {
-    "📊 Main Dashboard": main_dashboard,
-    "🛡️ Moderation Center": moderation_page,
+    "📊 Main Dashboard": lambda: main_dashboard(db),
+    "🧪 Smoke Test":     lambda: smoke_test(db),
+    "🛡️ Moderation Center": lambda: moderation_page(db),
 }
-
-st.sidebar.title("Navigation")
-selection = st.sidebar.radio("Go to", list(PAGES.keys()))
-page = PAGES[selection]
-
-# Run the selected page (Firebase already initialized above)
-page()
+selection = st.sidebar.radio("Go to", list(PAGES.keys()), index=0)
+PAGES[selection]()
