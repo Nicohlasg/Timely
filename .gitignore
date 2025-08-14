@@ -10,6 +10,7 @@
 .history
 .svn/
 .swiftpm/
+.streamlit/secrets.toml
 migrate_working_dir/
 
 # IntelliJ related
@@ -31,6 +32,8 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
+.env
+firebase_service_account.json
 /build/
 
 # Symbolication related
