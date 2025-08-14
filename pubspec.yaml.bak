@@ -1,0 +1,55 @@
+name: calendar_app
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.8.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+  cloud_firestore: ^5.6.11
+  flutter_colorpicker: ^1.1.0
+  intl: ^0.20.2
+  table_calendar: ^3.2.0
+  google_fonts: ^6.2.1
+  provider: ^6.1.5
+  firebase_messaging: ^15.2.10
+  firebase_core: ^3.15.2
+  firebase_auth: ^5.7.0
+  shared_preferences: ^2.5.3
+  month_year_picker: ^0.5.0+1
+  image_picker: ^1.1.2
+  http: ^1.4.0
+  flutter_auto_localizations: any
+  firebase_storage: ^12.4.10
+  google_sign_in: ^7.1.1
+  googleapis: ^14.0.0
+  googleapis_auth: ^2.0.0
+  url_launcher: ^6.3.2
+
+  flutter_localizations:
+    sdk: flutter
+  flutter_dotenv: ^5.2.1
+  cloud_functions: ^5.6.2
+  flutter_local_notifications: ^19.4.0
+  firebase_app_check: ^0.3.2+10
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^5.0.0
+
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/img/background.jpg
+    - assets/img/preset1.jpg
+    - assets/img/preset2.jpg
+    - assets/img/preset3.jpg
+    - assets/img/google_calendar_icon.png
+    - .env
