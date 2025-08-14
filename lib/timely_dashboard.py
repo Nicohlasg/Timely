@@ -1,8 +1,7 @@
 # timely_dashboard.py
 # To run: streamlit run timely_dashboard.py
 
-import json
-import os
+import json, os, hashlib
 import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -21,27 +20,53 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+def _secret_fingerprint() -> str:
+    """Changes when firebase_service_account changes, to refresh cached init."""
+    if "firebase_service_account" in st.secrets:
+        svc = st.secrets["firebase_service_account"]
+        if isinstance(svc, str):
+            src = svc
+        else:
+            src = json.dumps(dict(svc), sort_keys=True)
+        return hashlib.sha256(src.encode("utf-8")).hexdigest()[:12]
+    # fallback to path if you use local file
+    path = st.secrets.get("firebase_credentials_path") or os.environ.get("FIREBASE_CREDENTIALS_PATH") or ""
+    return f"path:{path}"
+
 # Function to initialize Firebase (uses Streamlit's caching to run only once)
 @st.cache_resource
-def init_firebase():
-    # Require the secret and accept either TOML table or JSON string
-    if "firebase_service_account" not in st.secrets:
-        st.error("Add firebase_service_account in Streamlit Secrets.")
-        return None
-
-    svc = st.secrets["firebase_service_account"]
-    info = json.loads(svc) if isinstance(svc, str) else dict(svc)
-
+def init_firebase(_fp: str):
+    # Require secret; accept TOML table or JSON string. Fallback to path if provided.
+    svc = st.secrets.get("firebase_service_account")
     try:
+        if svc:
+            info = json.loads(svc) if isinstance(svc, str) else dict(svc)
+            cred = credentials.Certificate(info)
+        else:
+            path = st.secrets.get("firebase_credentials_path") or os.environ.get("FIREBASE_CREDENTIALS_PATH")
+            if not path:
+                st.error("Add firebase_service_account in Streamlit Secrets.")
+                return None
+            cred = credentials.Certificate(path)
         if not firebase_admin._apps:
-            firebase_admin.initialize_app(credentials.Certificate(info))
+            firebase_admin.initialize_app(cred)
         return firestore.client()
     except Exception as e:
         st.error(f"Failed to initialize Firebase: {e}")
         return None
 
+# Manual cache clear for convenience
+with st.sidebar:
+    if st.button("Clear cache and reconnect"):
+        try:
+            st.cache_resource.clear()
+            st.cache_data.clear()
+        except Exception:
+            pass
+        st.rerun()
+
 # Initialize Firebase and get the Firestore client (use the return value)
-db = init_firebase()
+db = init_firebase(_secret_fingerprint())
 if not db:
     st.stop()
 
