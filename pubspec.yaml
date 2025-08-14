@@ -1,0 +1,98 @@
+name: calendar_app
+description: "A new Flutter project."
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=2.17.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+  cloud_firestore: ^5.6.11
+  flutter_colorpicker: ^1.1.0
+  intl: ^0.20.2
+  table_calendar: ^3.2.0
+  google_fonts: ^6.2.1
+  provider: ^6.1.5
+  firebase_messaging: ^15.2.10
+  firebase_core: ^3.15.2
+  firebase_auth: ^5.7.0
+  shared_preferences: ^2.5.3
+  month_year_picker: ^0.5.0+1
+  image_picker: ^1.1.2
+  http: ^1.4.0
+  flutter_auto_localizations: any
+  firebase_storage: ^12.4.10
+  google_sign_in: ^7.1.1
+  googleapis: ^14.0.0
+  googleapis_auth: ^2.0.0
+  url_launcher: ^6.3.2
+
+  flutter_localizations:
+    sdk: flutter
+  flutter_dotenv: ^5.2.1
+  cloud_functions: ^5.6.2
+  flutter_local_notifications: ^19.4.0
+  firebase_app_check: ^0.3.2+10
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^5.0.0
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
+  uses-material-design: true
+
+  # To add assets to your application, add an assets section, like this:
+  assets:
+    - assets/img/background.jpg
+    - assets/img/preset1.jpg
+    - assets/img/preset2.jpg
+    - assets/img/preset3.jpg
+    - assets/img/google_calendar_icon.png
+    - .env
+
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # For details regarding adding assets from package dependencies, see
+  # https://flutter.dev/to/asset-from-package
+
+  # To add custom fonts to your application, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/to/font-from-package
