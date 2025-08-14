@@ -9,6 +9,7 @@ from firebase_admin import credentials, firestore
 import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta
+from google.api_core.exceptions import GoogleAPICallError, DeadlineExceeded, PermissionDenied, Unauthenticated
 
 # --- Configuration and Firebase Initialization ---
 
@@ -23,12 +24,12 @@ st.set_page_config(
 # Function to initialize Firebase (uses Streamlit's caching to run only once)
 @st.cache_resource
 def init_firebase():
-    svc = st.secrets.get("firebase_service_account")
-    if not svc:
+    # Require the secret and accept either TOML table or JSON string
+    if "firebase_service_account" not in st.secrets:
         st.error("Add firebase_service_account in Streamlit Secrets.")
         return None
 
-    # Accept TOML table or JSON string
+    svc = st.secrets["firebase_service_account"]
     info = json.loads(svc) if isinstance(svc, str) else dict(svc)
 
     try:
@@ -39,40 +40,35 @@ def init_firebase():
         st.error(f"Failed to initialize Firebase: {e}")
         return None
 
-# Initialize Firebase and get the Firestore client
-if init_firebase():
-    db = firestore.client()
+# Initialize Firebase and get the Firestore client (use the return value)
+db = init_firebase()
+if not db:
+    st.stop()
 
-# --- Data Fetching Functions ---
-# These functions fetch data from Firestore and are cached for performance.
+# --- Data Fetching Helpers (bounded, with timeout) ---
 
-@st.cache_data(ttl=600)  # Cache data for 10 minutes
-def get_all_data():
-    """Fetches all users, events, friendships, and reports from Firestore."""
-    users_ref = db.collection('users').stream()
-    events_ref = db.collection('events').stream()
-    friendships_ref = db.collection('friendships').stream()
-    reports_ref = db.collection('reports').stream()
-
-    users = [user.to_dict() for user in users_ref]
-    events = [event.to_dict() for event in events_ref]
-    friendships = [f.to_dict() for f in friendships_ref]
-    # Add document ID to each report for moderation actions
-    reports = []
-    for report in reports_ref:
-        report_data = report.to_dict()
-        report_data['id'] = report.id
-        reports.append(report_data)
-
-    return pd.DataFrame(users), pd.DataFrame(events), pd.DataFrame(friendships), pd.DataFrame(reports)
-
-# --- Helper Functions ---
+@st.cache_data(ttl=600, show_spinner=False)
+def fetch_collection(name: str, limit: int = 5000, timeout_sec: float = 20.0) -> pd.DataFrame:
+    try:
+        docs = db.collection(name).limit(limit).get(timeout=timeout_sec)
+        items = []
+        for d in docs:
+            data = d.to_dict() or {}
+            data["id"] = d.id
+            items.append(data)
+        return pd.DataFrame(items)
+    except (DeadlineExceeded, PermissionDenied, Unauthenticated, GoogleAPICallError) as e:
+        st.warning(f"Could not load '{name}' (timeout/perm): {e}")
+        return pd.DataFrame()
+    except Exception as e:
+        st.warning(f"Error loading '{name}': {e}")
+        return pd.DataFrame()
 
 def parse_iso_string(s):
     """Safely parses ISO string to datetime object."""
     try:
         return datetime.fromisoformat(s.replace('Z', '+00:00'))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, AttributeError):
         return None
 
 # --- Main Dashboard App ---
@@ -82,21 +78,31 @@ def main_dashboard():
     st.title("🗓️ Timely - Admin Dashboard")
     st.markdown("Welcome to the central hub for monitoring Timely's growth and user activity.")
 
-    # Load data
-    try:
-        users_df, events_df, friendships_df, reports_df = get_all_data()
-    except Exception as e:
-        st.error(f"Could not load data from Firestore. Please check your connection and credentials. Error: {e}")
-        return
+    # Load data with clear, bounded spinners (no global function spinner)
+    with st.spinner("Loading users..."):
+        users_df = fetch_collection("users")
+    with st.spinner("Loading events..."):
+        events_df = fetch_collection("events")
+    with st.spinner("Loading friendships..."):
+        friendships_df = fetch_collection("friendships")
+    with st.spinner("Loading reports..."):
+        reports_df = fetch_collection("reports")
+
+    # Add createdAt/report dates normalization for robustness
+    if not users_df.empty and "createdAt" in users_df.columns:
+        users_df["createdAt"] = pd.to_datetime(users_df["createdAt"], errors="coerce")
+
+    if not events_df.empty and "start" in events_df.columns:
+        events_df["start_time"] = events_df["start"].apply(parse_iso_string)
+        events_df.dropna(subset=["start_time"], inplace=True)
 
     # --- High-Level Metrics ---
     st.header("Key Performance Indicators (KPIs)")
-    
-    # Calculate KPIs
+
     total_users = len(users_df)
     total_events = len(events_df)
-    total_friendships = friendships_df[friendships_df['status'] == 'accepted'].shape[0] if not friendships_df.empty else 0
-    pending_reports = reports_df[reports_df['status'] == 'pending_review'].shape[0] if not reports_df.empty else 0
+    total_friendships = friendships_df[friendships_df.get("status") == "accepted"].shape[0] if not friendships_df.empty else 0
+    pending_reports = reports_df[reports_df.get("status") == "pending_review"].shape[0] if not reports_df.empty else 0
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Users", f"{total_users}")
