@@ -1,6 +1,7 @@
 # timely_dashboard.py
 # To run: streamlit run timely_dashboard.py
 
+import json
 import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -23,13 +24,18 @@ st.set_page_config(
 def init_firebase():
     """Initializes the Firebase Admin SDK using credentials."""
     try:
-        # Get the path from Streamlit secrets
-        creds_path = st.secrets["firebase_credentials_path"]
-        cred = credentials.Certificate(creds_path)
-        # Check if the app is already initialized
+        svc = st.secrets.get("firebase_service_account")
+        if not svc:
+            st.error("Add firebase_service_account in Streamlit Secrets.")
+            return None
+        # Accept table or JSON string
+        if isinstance(svc, str):
+            info = json.loads(svc)
+        else:
+            info = dict(svc)
         if not firebase_admin._apps:
-            firebase_admin.initialize_app(cred)
-        return True
+            firebase_admin.initialize_app(credentials.Certificate(info))
+        return firestore.client()
     except Exception as e:
         st.error(f"Failed to initialize Firebase: {e}")
         st.warning("Please ensure your `firebase_credentials.json` is correctly placed and referenced in `.streamlit/secrets.toml`.")
