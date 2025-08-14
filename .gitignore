@@ -44,6 +44,8 @@ app.*.map.json
 firebase_service_account.json
 firebase_credentials.json
 credentials.json
+google-credentials.json
+private_key.pem
 .streamlit/
 lib/.streamlit/
 lib/firebase_options.dart

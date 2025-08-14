@@ -70,10 +70,19 @@ db = init_firebase(_secret_fingerprint())
 if not db:
     st.stop()
 
+# Global sidebar control for max docs per collection
+with st.sidebar:
+    max_docs = st.number_input(
+        "Max docs per collection",
+        min_value=100, max_value=10000, value=2000, step=100,
+        help="Caps how many documents are fetched from each Firestore collection."
+    )
+    st.session_state["max_docs"] = int(max_docs)
+
 # --- Data Fetching Helpers (bounded, with timeout) ---
 
 @st.cache_data(ttl=600, show_spinner=False)
-def fetch_collection(name: str, limit: int = 5000, timeout_sec: float = 20.0) -> pd.DataFrame:
+def fetch_collection(name: str, limit: int = 2000, timeout_sec: float = 20.0) -> pd.DataFrame:
     try:
         docs = db.collection(name).limit(limit).get(timeout=timeout_sec)
         items = []
@@ -103,15 +112,16 @@ def main_dashboard():
     st.title("🗓️ Timely - Admin Dashboard")
     st.markdown("Welcome to the central hub for monitoring Timely's growth and user activity.")
 
-    # Load data with clear, bounded spinners (no global function spinner)
+    # Load data with clear, bounded spinners (use the global limit)
+    lim = st.session_state.get("max_docs", 2000)
     with st.spinner("Loading users..."):
-        users_df = fetch_collection("users")
+        users_df = fetch_collection("users", limit=lim)
     with st.spinner("Loading events..."):
-        events_df = fetch_collection("events")
+        events_df = fetch_collection("events", limit=lim)
     with st.spinner("Loading friendships..."):
-        friendships_df = fetch_collection("friendships")
+        friendships_df = fetch_collection("friendships", limit=lim)
     with st.spinner("Loading reports..."):
-        reports_df = fetch_collection("reports")
+        reports_df = fetch_collection("reports", limit=lim)
 
     # Add createdAt/report dates normalization for robustness
     if not users_df.empty and "createdAt" in users_df.columns:
@@ -207,19 +217,18 @@ def moderation_page():
     st.title("🛡️ Moderation Center")
     st.markdown("Review and take action on user-submitted reports.")
 
-    try:
-        _, _, _, reports_df = get_all_data()
-    except Exception as e:
-        st.error(f"Could not load reports from Firestore. Error: {e}")
-        return
+    # Fetch reports directly (replace missing get_all_data)
+    lim = st.session_state.get("max_docs", 2000)
+    reports_df = fetch_collection("reports", limit=lim)
+    if "createdAt" in reports_df.columns:
+        reports_df["createdAt"] = pd.to_datetime(reports_df["createdAt"], errors="coerce")
 
     if reports_df.empty:
         st.success("🎉 No pending reports. All clear!")
         return
 
     # Filter for pending reports
-    pending_reports = reports_df[reports_df['status'] == 'pending_review'].copy()
-    
+    pending_reports = reports_df[reports_df.get("status") == "pending_review"].copy()
     if pending_reports.empty:
         st.success("🎉 No pending reports. All clear!")
         return
@@ -270,7 +279,5 @@ st.sidebar.title("Navigation")
 selection = st.sidebar.radio("Go to", list(PAGES.keys()))
 page = PAGES[selection]
 
-# Run the selected page function
-if __name__ == "__main__":
-    if init_firebase():
-        page()
+# Run the selected page (Firebase already initialized above)
+page()
