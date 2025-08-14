@@ -1,283 +1,275 @@
 # timely_dashboard.py
 # To run: streamlit run timely_dashboard.py
 
-import json, os, hashlib
-from datetime import datetime
+import json, os
+from datetime import datetime, timedelta
 import pandas as pd
 import streamlit as st
+import plotly.express as px
 import firebase_admin
 from firebase_admin import credentials, firestore
-from google.api_core.exceptions import GoogleAPICallError, DeadlineExceeded, PermissionDenied, Unauthenticated
 
-# --- Configuration and Firebase Initialization ---
-
-# Page Configuration: Must be the first Streamlit command
+# --- Page Configuration ---
 st.set_page_config(
     page_title="Timely Admin Dashboard",
     page_icon="🗓️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-def _secret_fingerprint() -> str:
-    """Changes when firebase_service_account changes, to refresh cached init."""
-    if "firebase_service_account" in st.secrets:
-        svc = st.secrets["firebase_service_account"]
-        src = svc if isinstance(svc, str) else json.dumps(dict(svc), sort_keys=True)
-        return hashlib.sha256(src.encode()).hexdigest()[:12]
-    # fallback to path if you use local file
-    path = st.secrets.get("firebase_credentials_path") or os.environ.get("FIREBASE_CREDENTIALS_PATH") or ""
-    return f"path:{path}"
+# --- Custom Styling ---
+st.markdown("""
+<style>
+    /* Main headers */
+    .stApp h1, .stApp h2 {
+        color: #FFFFFF;
+    }
+    /* Metric labels */
+    .st-emotion-cache-1g6gooi {
+        color: #A0AEC0 !important; /* A light gray for metric labels */
+    }
+    /* Expander headers */
+    .st-emotion-cache-p5msec {
+        font-weight: bold;
+    }
+    /* Dataframe styling */
+    .stDataFrame {
+        border: 1px solid #4A5568;
+        border-radius: 0.5rem;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# Function to initialize Firebase (uses Streamlit's caching to run only once)
+
+# --- Firebase Connection (Simplified & Robust) ---
 @st.cache_resource
-def init_firebase(_fp: str):
-    # Require secret; accept TOML table or JSON string. Fallback to path if provided.
-    svc = st.secrets.get("firebase_service_account")
+def init_firebase():
+    """Initializes the Firebase connection using Streamlit secrets."""
     try:
-        if svc:
-            info = json.loads(svc) if isinstance(svc, str) else dict(svc)
-            cred = credentials.Certificate(info)
-        else:
-            path = st.secrets.get("firebase_credentials_path") or os.environ.get("FIREBASE_CREDENTIALS_PATH")
-            if not path:
-                st.error("Add firebase_service_account in Streamlit Secrets.")
-                return None
-            cred = credentials.Certificate(path)
         if not firebase_admin._apps:
+            # Recommended: Store the entire JSON as a single secret string
+            service_account_str = st.secrets.get("firebase_service_account")
+            if service_account_str:
+                service_account_info = json.loads(service_account_str)
+                cred = credentials.Certificate(service_account_info)
+            # Fallback: Use path if the secret string isn't available
+            else:
+                path = st.secrets.get("firebase_credentials_path")
+                if not path:
+                    st.error("Firebase credentials not found. Please set `firebase_service_account` or `firebase_credentials_path` in your Streamlit secrets.")
+                    return None
+                cred = credentials.Certificate(path)
+            
             firebase_admin.initialize_app(cred)
         return firestore.client()
     except Exception as e:
-        st.error(f"Failed to initialize Firebase: {e}")
+        st.error(f"🔥 Firebase Initialization Error: {e}. Please ensure your secrets are configured correctly.")
         return None
 
-def current_project_id() -> str | None:
-    svc = st.secrets.get("firebase_service_account")
-    if not svc:
-        return None
-    info = json.loads(svc) if isinstance(svc, str) else dict(svc)
-    return info.get("project_id")
-
-# Manual cache clear for convenience
-with st.sidebar:
-    if st.button("Clear cache and reconnect"):
-        try:
-            st.cache_resource.clear()
-            st.cache_data.clear()
-        except Exception:
-            pass
-        st.rerun()
-
-# Initialize Firebase and get the Firestore client (use the return value)
-db = init_firebase(_secret_fingerprint())
+db = init_firebase()
 if not db:
     st.stop()
 
-# Global sidebar control for max docs per collection
-with st.sidebar:
-    max_docs = st.number_input(
-        "Max docs per collection",
-        min_value=100, max_value=10000, value=500, step=100,
-        help="Caps how many documents are fetched from each Firestore collection."
-    )
-    st.session_state["max_docs"] = int(max_docs)
+# --- Data Fetching & Processing ---
+@st.cache_data(ttl=300) # Cache for 5 minutes
+def fetch_data():
+    """Fetches all necessary collections and performs initial cleaning."""
+    collections = ["users", "events", "friendships", "reports", "eventProposals"]
+    data = {}
+    for collection in collections:
+        docs = db.collection(collection).stream()
+        records = []
+        for doc in docs:
+            record = doc.to_dict()
+            record['id'] = doc.id
+            records.append(record)
+        data[collection] = pd.DataFrame(records)
 
-# --- Data Fetching Helpers (bounded, with timeout) ---
+    # --- Standardize Timestamps ---
+    for df_name, col_name in [("users", "createdAt"), ("events", "start"), ("friendships", "createdAt"), ("reports", "createdAt"), ("eventProposals", "createdAt")]:
+        if df_name in data and col_name in data[df_name].columns:
+            # Handle both Firestore Timestamps and ISO strings
+            data[df_name][col_name] = pd.to_datetime(data[df_name][col_name], errors='coerce')
 
-@st.cache_data(ttl=600, show_spinner=False)
-def fetch_collection(name: str, limit: int = 500, timeout_sec: float = 15.0) -> pd.DataFrame:
-    try:
-        q = firestore.Client().collection(name).limit(limit)  # use same client config under the hood
-        docs = list(q.stream(timeout=timeout_sec))
-        rows = []
-        for d in docs:
-            obj = d.to_dict() or {}
-            obj["id"] = d.id
-            rows.append(obj)
-        return pd.DataFrame(rows)
-    except (DeadlineExceeded, PermissionDenied, Unauthenticated, GoogleAPICallError) as e:
-        st.warning(f"Could not load '{name}': {e}")
-        return pd.DataFrame()
-    except Exception as e:
-        st.warning(f"Error loading '{name}': {e}")
-        return pd.DataFrame()
+    return data
 
-def parse_iso_string(s):
-    """Safely parses ISO string to datetime object."""
-    try:
-        return datetime.fromisoformat(s.replace('Z', '+00:00'))
-    except (TypeError, ValueError, AttributeError):
-        return None
+# --- App State Management ---
+if 'data' not in st.session_state:
+    st.session_state.data = fetch_data()
 
-# --- Main Dashboard App ---
+# --- Sidebar Controls ---
+st.sidebar.title("🛠️ Controls & Customization")
+if st.sidebar.button("🔄 Refresh Data"):
+    st.cache_data.clear()
+    st.session_state.data = fetch_data()
+    st.toast("Dashboard data has been refreshed!", icon="✅")
+    st.rerun()
 
-def main_dashboard(db):
-    """Main function to build the Streamlit dashboard."""
-    st.title("🗓️ Timely - Admin Dashboard")
-    st.markdown("Welcome to the central hub for monitoring Timely's growth and user activity.")
-
-    # Load data with clear, bounded spinners (use the global limit)
-    lim = st.session_state.get("max_docs", 500)
-    with st.spinner("Loading users..."):
-        users_df = fetch_collection("users", limit=lim)
-    with st.spinner("Loading events..."):
-        events_df = fetch_collection("events", limit=lim)
-    with st.spinner("Loading friendships..."):
-        friendships_df = fetch_collection("friendships", limit=lim)
-    with st.spinner("Loading reports..."):
-        reports_df = fetch_collection("reports", limit=lim)
-
-    # Add createdAt/report dates normalization for robustness
-    if not users_df.empty and "createdAt" in users_df.columns:
-        users_df["createdAt"] = pd.to_datetime(users_df["createdAt"], errors="coerce")
-
-    if not events_df.empty and "start" in events_df.columns:
-        events_df["start_time"] = events_df["start"].apply(parse_iso_string)
-        events_df.dropna(subset=["start_time"], inplace=True)
-
-    # --- High-Level Metrics ---
-    st.header("Key Performance Indicators (KPIs)")
-
-    total_users = len(users_df)
-    total_events = len(events_df)
-    total_friendships = friendships_df[friendships_df.get("status") == "accepted"].shape[0] if not friendships_df.empty else 0
-    pending_reports = reports_df[reports_df.get("status") == "pending_review"].shape[0] if not reports_df.empty else 0
-
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Users", f"{total_users}")
-    col2.metric("Total Events Created", f"{total_events}")
-    col3.metric("Active Friendships", f"{total_friendships}")
-    col4.metric("Pending Reports", f"{pending_reports}", delta=pending_reports, delta_color="inverse")
-
-    st.divider()
-
-    # --- Visualizations ---
-    st.header("Analytics & Insights")
-
-    # Customization Sidebar
-    st.sidebar.header("Chart Customization")
-    time_range = st.sidebar.slider(
-        "Select Time Range (Days)",
-        min_value=1, max_value=90, value=30,
-        help="Filter charts to show data from the last X days."
-    )
-    
-    # Prepare data for time-series charts
-    if not users_df.empty and 'createdAt' in users_df.columns:
-        users_df['createdAt'] = pd.to_datetime(users_df['createdAt'], errors='coerce')
-        recent_users_df = users_df[users_df['createdAt'] > datetime.now() - timedelta(days=time_range)]
-        user_signups_by_day = recent_users_df.set_index('createdAt').resample('D').size().reset_index(name='count')
-    else:
-        user_signups_by_day = pd.DataFrame({'createdAt': [], 'count': []})
-
-    if not events_df.empty and 'start' in events_df.columns:
-        events_df['start_time'] = events_df['start'].apply(parse_iso_string)
-        events_df.dropna(subset=['start_time'], inplace=True)
-        recent_events_df = events_df[events_df['start_time'] > datetime.now() - timedelta(days=time_range)]
-        events_by_day = recent_events_df.set_index('start_time').resample('D').size().reset_index(name='count')
-    else:
-        events_by_day = pd.DataFrame({'start_time': [], 'count': []})
-
-    # Display Charts
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.subheader("User Signups Over Time")
-        if not user_signups_by_day.empty:
-            fig_users = px.line(user_signups_by_day, x='createdAt', y='count', title="Daily New Users", labels={'createdAt': 'Date', 'count': 'Number of Signups'})
-            fig_users.update_layout(xaxis_title="Date", yaxis_title="Signups")
-            st.plotly_chart(fig_users, use_container_width=True)
-        else:
-            st.info("No user signup data available for the selected period.")
-
-    with col_b:
-        st.subheader("Event Creation Over Time")
-        if not events_by_day.empty:
-            fig_events = px.bar(events_by_day, x='start_time', y='count', title="Daily Events Created", labels={'start_time': 'Date', 'count': 'Number of Events'})
-            fig_events.update_layout(xaxis_title="Date", yaxis_title="Events Created")
-            st.plotly_chart(fig_events, use_container_width=True)
-        else:
-            st.info("No event creation data available for the selected period.")
-
-    st.divider()
-
-    # --- Raw Data Explorer ---
-    st.header("Data Explorer")
-    
-    # Customization for Data Explorer
-    dataset_to_view = st.selectbox("Choose a dataset to view:", ("Users", "Events", "Friendships", "Reports"))
-    
-    if dataset_to_view == "Users":
-        st.dataframe(users_df)
-    elif dataset_to_view == "Events":
-        st.dataframe(events_df)
-    elif dataset_to_view == "Friendships":
-        st.dataframe(friendships_df)
-    elif dataset_to_view == "Reports":
-        st.dataframe(reports_df)
-
-
-def moderation_page(db):
-    """Page for handling user reports and moderation."""
-    st.title("🛡️ Moderation Center")
-    st.markdown("Review and take action on user-submitted reports.")
-
-    # Fetch reports directly (replace missing get_all_data)
-    lim = st.session_state.get("max_docs", 500)
-    reports_df = fetch_collection("reports", limit=lim)
-    if "createdAt" in reports_df.columns:
-        reports_df["createdAt"] = pd.to_datetime(reports_df["createdAt"], errors="coerce")
-
-    if reports_df.empty:
-        st.success("🎉 No pending reports. All clear!")
-        return
-
-    # Filter for pending reports
-    pending_reports = reports_df[reports_df.get("status") == "pending_review"].copy()
-    if pending_reports.empty:
-        st.success("🎉 No pending reports. All clear!")
-        return
-
-    st.info(f"You have **{len(pending_reports)}** pending report(s) to review.")
-    
-    # Display reports in an interactive way
-    for index, report in pending_reports.iterrows():
-        with st.expander(f"Report ID: {report['id']} - Reason: **{report['reason']}**"):
-            st.markdown(f"**Reported User ID:** `{report['reportedUserId']}`")
-            st.markdown(f"**Reporter ID:** `{report['reporterId']}`")
-            st.markdown(f"**Date:** {report['createdAt'].strftime('%Y-%m-%d %H:%M')}")
-            st.markdown("**Details Provided:**")
-            st.info(report['details'] if report['details'] else "No additional details were provided.")
-
-            st.markdown("---")
-            st.subheader("Moderation Actions")
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                if st.button("Mark as Resolved", key=f"resolve_{report['id']}"):
-                    db.collection('reports').document(report['id']).update({'status': 'resolved'})
-                    st.success(f"Report {report['id']} marked as resolved.")
-                    st.experimental_rerun()
-
-            with col2:
-                if st.button("Dismiss as False", key=f"dismiss_{report['id']}"):
-                    db.collection('reports').document(report['id']).update({'status': 'dismissed_false'})
-                    st.success(f"Report {report['id']} dismissed as false.")
-                    st.experimental_rerun()
-
-            with col3:
-                # In a real app, this would trigger a Cloud Function to handle user suspension safely.
-                # Directly modifying user accounts from the dashboard is risky.
-                if st.button("⚠️ Suspend User (Placeholder)", key=f"suspend_{report['id']}"):
-                    st.warning(f"This would suspend user {report['reportedUserId']}. This action is a placeholder.")
-                    # Example: db.collection('users').document(report['reportedUserId']).update({'isSuspended': True})
+st.sidebar.markdown("---")
+st.sidebar.header("Date Range Filter")
+time_range_days = st.sidebar.slider(
+    "Select time range for charts (days)",
+    min_value=7, max_value=365, value=90, step=1,
+    help="Filters time-series charts to show data from the last X days."
+)
+date_filter_cutoff = datetime.now() - timedelta(days=time_range_days)
 
 
 # --- Page Navigation ---
 PAGES = {
-    "📊 Main Dashboard": lambda: main_dashboard(db),
-    "🧪 Smoke Test":     lambda: smoke_test(db),
-    "🛡️ Moderation Center": lambda: moderation_page(db),
+    "📊 Main Dashboard": "main_dashboard",
+    "🛡️ Moderation Center": "moderation_page",
 }
 selection = st.sidebar.radio("Go to", list(PAGES.keys()), index=0)
-PAGES[selection]()
+
+# ==============================================================================
+# PAGE 1: MAIN DASHBOARD
+# ==============================================================================
+def main_dashboard():
+    st.title("📊 Main Dashboard")
+    st.markdown("An overview of Timely's key metrics and user activity.")
+
+    # Unpack data from session state
+    users_df = st.session_state.data.get("users", pd.DataFrame())
+    events_df = st.session_state.data.get("events", pd.DataFrame())
+    friendships_df = st.session_state.data.get("friendships", pd.DataFrame())
+    proposals_df = st.session_state.data.get("eventProposals", pd.DataFrame())
+    
+    # --- KPIs ---
+    st.header("🚀 Key Performance Indicators")
+
+    total_users = len(users_df)
+    new_users_in_range = len(users_df[users_df['createdAt'] > date_filter_cutoff]) if 'createdAt' in users_df.columns else 0
+    accepted_friendships = len(friendships_df[friendships_df['status'] == 'accepted']) if 'status' in friendships_df.columns else 0
+    
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Users", f"{total_users:,}", f"{new_users_in_range:,} in last {time_range_days} days")
+    col2.metric("Total Events", f"{len(events_df):,}")
+    col3.metric("Total Friendships", f"{accepted_friendships:,}")
+    col4.metric("Total Proposals", f"{len(proposals_df):,}")
+    
+    st.markdown("---")
+    
+    # --- Analytics Visualizations ---
+    st.header("📈 Visual Analytics")
+
+    # Filter data based on sidebar date range
+    users_in_range = users_df[users_df['createdAt'] > date_filter_cutoff] if 'createdAt' in users_df.columns else pd.DataFrame()
+    events_in_range = events_df[pd.to_datetime(events_df['start'], errors='coerce') > date_filter_cutoff] if 'start' in events_df.columns else pd.DataFrame()
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.subheader("User Growth")
+        if not users_in_range.empty:
+            daily_signups = users_in_range.set_index('createdAt').resample('D').size().reset_index(name='count')
+            fig = px.area(daily_signups, x='createdAt', y='count', title="Daily User Signups", labels={'createdAt': 'Date', 'count': 'Signups'})
+            fig.update_traces(line_color='#00A9FF')
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No user data in selected time range.")
+
+    with c2:
+        st.subheader("Event Creation")
+        if not events_in_range.empty:
+            daily_events = events_in_range.set_index(pd.to_datetime(events_in_range['start'])).resample('D').size().reset_index(name='count')
+            fig = px.bar(daily_events, x='start', y='count', title="Daily Events Created", labels={'start': 'Date', 'count': 'Events'})
+            fig.update_traces(marker_color='#FF6868')
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No event data in selected time range.")
+
+    c3, c4 = st.columns(2)
+    with c3:
+        st.subheader("Proposal Status Distribution")
+        if not proposals_df.empty:
+            status_counts = proposals_df['status'].value_counts().reset_index()
+            fig = px.pie(status_counts, names='status', values='count', title="Event Proposal Statuses",
+                         color_discrete_map={'accepted': '#28a745', 'declined': '#dc3545', 'pending': '#ffc107'})
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No proposal data available.")
+            
+    with c4:
+        st.subheader("User Engagement")
+        if not events_df.empty:
+            events_per_user = events_df['userId'].value_counts().reset_index(name='event_count')
+            fig = px.histogram(events_per_user, x='event_count', title="Distribution of Events per User",
+                               labels={'event_count': 'Number of Events Created'})
+            fig.update_traces(marker_color='#89B9AD')
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No event data available for engagement analysis.")
+
+
+# ==============================================================================
+# PAGE 2: MODERATION CENTER
+# ==============================================================================
+def moderation_page():
+    st.title("🛡️ Moderation Center")
+    st.markdown("Review and manage user reports to maintain a safe and positive community.")
+
+    reports_df = st.session_state.data.get("reports", pd.DataFrame())
+    users_df = st.session_state.data.get("users", pd.DataFrame())
+
+    if reports_df.empty:
+        st.success("🎉 No reports found. All clear!")
+        return
+
+    # --- Filters ---
+    st.sidebar.header("Moderation Filters")
+    status_filter = st.sidebar.multiselect(
+        "Filter by Report Status",
+        options=reports_df['status'].unique(),
+        default=['pending_review']
+    )
+    
+    filtered_reports = reports_df[reports_df['status'].isin(status_filter)]
+    
+    if filtered_reports.empty:
+        st.info("No reports match the current filter.")
+        return
+
+    st.info(f"Displaying **{len(filtered_reports)}** report(s).")
+    
+    # --- Display Reports ---
+    for _, report in filtered_reports.iterrows():
+        with st.container(border=True):
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.subheader(f"Reason: {report['reason']}")
+                st.caption(f"Report ID: {report['id']} | Date: {report['createdAt'].strftime('%Y-%m-%d %H:%M')}")
+                st.markdown(f"**Reported User:** `{report['reportedUserId']}`")
+                st.markdown(f"**Reporter:** `{report['reporterId']}`")
+            with col2:
+                # Actions for the report
+                new_status = st.selectbox(
+                    "Update Status",
+                    options=['pending_review', 'resolved', 'dismissed'],
+                    index=['pending_review', 'resolved', 'dismissed'].index(report['status']),
+                    key=f"status_{report['id']}"
+                )
+                if st.button("Save Status", key=f"save_{report['id']}"):
+                    db.collection('reports').document(report['id']).update({'status': new_status})
+                    st.toast(f"Report {report['id']} updated!", icon="✅")
+                    st.cache_data.clear() # Clear cache to refetch
+                    st.rerun()
+
+            if st.toggle("Show User Profiles", key=f"profiles_{report['id']}"):
+                p1, p2 = st.columns(2)
+                with p1:
+                    st.write("Reporter Profile:")
+                    reporter_profile = users_df[users_df['uid'] == report['reporterId']]
+                    st.dataframe(reporter_profile, hide_index=True)
+                with p2:
+                    st.write("Reported User Profile:")
+                    reported_profile = users_df[users_df['uid'] == report['reportedUserId']]
+                    st.dataframe(reported_profile, hide_index=True)
+
+            if st.toggle("Show Details", key=f"details_{report['id']}"):
+                st.info(report['details'] if report['details'] else "No details provided.")
+
+# --- Run the selected page ---
+if selection == "📊 Main Dashboard":
+    main_dashboard()
+elif selection == "🛡️ Moderation Center":
+    moderation_page()
