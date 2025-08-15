@@ -1,7 +1,7 @@
 # timely_dashboard.py
 # To run: streamlit run timely_dashboard.py
 
-import json
+import json, os, hashlib
 import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -17,22 +17,41 @@ st.set_page_config(
 )
 
 # --- Firebase Connection (Robust & Simplified) ---
+def _normalize_private_key(info: dict) -> dict:
+    pk = info.get("private_key")
+    if not pk:
+        return info
+    # If the JSON carried literal '\n', convert to real newlines; normalize CRLF
+    pk = pk.replace("\\n", "\n").replace("\r\n", "\n").strip()
+    # Ensure header/footer lines
+    if not pk.startswith("-----BEGIN PRIVATE KEY-----"):
+        pk = "-----BEGIN PRIVATE KEY-----\n" + pk
+    if not pk.endswith("-----END PRIVATE KEY-----"):
+        if not pk.endswith("\n"):
+            pk += "\n"
+        pk += "-----END PRIVATE KEY-----"
+    info["private_key"] = pk + ("\n" if not pk.endswith("\n") else "")
+    return info
+
 @st.cache_resource
-def init_firebase():
-    """Initializes a persistent Firebase connection using Streamlit secrets."""
+def init_firebase(_fp: str = ""):
     try:
-        if not firebase_admin._apps:
-            service_account_str = st.secrets.get("firebase_service_account")
-            if not service_account_str:
-                st.error("Firebase credentials not found in Streamlit secrets. Please add the full content of your service account JSON to a secret named 'firebase_service_account'.")
+        svc = st.secrets.get("firebase_service_account")
+        if svc:
+            info = json.loads(svc) if isinstance(svc, str) else dict(svc)
+            info = _normalize_private_key(info)
+            cred = credentials.Certificate(info)
+        else:
+            path = st.secrets.get("firebase_credentials_path") or os.environ.get("FIREBASE_CREDENTIALS_PATH")
+            if not path:
+                st.error("Add firebase_service_account in Streamlit Secrets.")
                 return None
-            
-            service_account_info = json.loads(service_account_str)
-            cred = credentials.Certificate(service_account_info)
+            cred = credentials.Certificate(path)
+        if not firebase_admin._apps:
             firebase_admin.initialize_app(cred)
         return firestore.client()
     except Exception as e:
-        st.error(f"🔥 Firebase Initialization Error: {e}. Please ensure your secrets are configured correctly.")
+        st.error(f"Failed to initialize Firebase: {e}")
         return None
 
 db = init_firebase()
