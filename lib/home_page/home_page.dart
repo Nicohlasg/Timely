@@ -508,12 +508,7 @@ class _HomeViewState extends State<HomeView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              TextButton.icon(
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                label: const Text("Edit"),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                ),
+              EditButton(
                 onPressed: () {
                   final masterEvent =
                       context.read<CalendarState>().events.firstWhere(
@@ -533,12 +528,7 @@ class _HomeViewState extends State<HomeView> {
                 },
               ),
               const SizedBox(width: 8),
-              TextButton.icon(
-                icon: const Icon(Icons.delete_outline, size: 18),
-                label: const Text("Delete"),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.red.shade300,
-                ),
+              DeleteButton(
                 onPressed: () => _showDeleteDialog(context, event),
               ),
             ],
