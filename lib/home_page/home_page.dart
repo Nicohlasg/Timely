@@ -560,29 +560,7 @@ class _HomeViewState extends State<HomeView> {
   }
 
   Widget _buildSectionHeader(String title, VoidCallback onViewAll) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            title,
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          TextButton(
-            onPressed: onViewAll,
-            child: Text(
-              'View All',
-              style: GoogleFonts.inter(color: Colors.blue.shade300),
-            ),
-          ),
-        ],
-      ),
-    );
+    return WidgetUtils.buildSectionHeader(title, onActionPressed: onViewAll);
   }
 }
 
