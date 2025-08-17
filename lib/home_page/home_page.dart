@@ -305,43 +305,11 @@ class _HomeViewState extends State<HomeView> {
                 ...upcomingPolls.map((poll) => _EventPollCard(poll: poll)),
                 const SizedBox(height: 24),
               ],
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "Upcoming Tasks",
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        TextButton(
-                          onPressed: () {
-                            context.read<TaskState>().createSampleTasks();
-                          },
-                          child: Text(
-                            'Add Sample',
-                            style: GoogleFonts.inter(color: Colors.blue.shade300),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            // TODO: Navigate to a page with all tasks
-                          },
-                          child: Text(
-                            'View All',
-                            style: GoogleFonts.inter(color: Colors.blue.shade300),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+              WidgetUtils.buildSectionHeader(
+                "Upcoming Tasks",
+                onActionPressed: () {
+                  // TODO: Navigate to a page with all tasks
+                },
               ),
               const SizedBox(height: 16),
               Consumer<TaskState>(
