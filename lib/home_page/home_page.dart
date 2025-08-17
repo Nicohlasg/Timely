@@ -22,6 +22,15 @@ import '../state/task_state.dart';
 import '../models/task.dart';
 import '../profile_page/proposals_inbox_page.dart';
 
+// Import our new standardized components
+import '../utils/dialog_utils.dart';
+import '../utils/date_utils.dart';
+import '../utils/widget_utils.dart';
+import '../widgets/common/app_tag.dart';
+import '../widgets/common/app_card.dart';
+import '../widgets/common/app_button.dart';
+import '../Theme/app_styles.dart';
+
 Future<void> _showDeleteDialog(
   BuildContext context,
   CalendarEvent event,
