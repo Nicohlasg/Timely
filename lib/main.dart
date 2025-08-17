@@ -81,7 +81,6 @@ class MainApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ProposalState()),
         ChangeNotifierProvider(create: (_) => NotificationState()),
         ChangeNotifierProvider(create: (_) => TaskState()),
-        // Add the style provider for theme management
         ChangeNotifierProvider(create: (_) => AppStyleProvider()),
       ],
       child: const MyApp(),
