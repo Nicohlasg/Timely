@@ -803,11 +803,11 @@ class __TaskItemState extends State<_TaskItem> {
               ),
               const SizedBox(height: 4),
               if (widget.task.priority == TaskPriority.high)
-                _Tag(text: "HIGH", color: Colors.red.shade100),
+                PriorityTag.high(),
               if (widget.task.priority == TaskPriority.medium)
-                _Tag(text: "MEDIUM", color: Colors.orange.shade100),
+                PriorityTag.medium(),
               if (widget.task.priority == TaskPriority.low)
-                _Tag(text: "LOW", color: Colors.green.shade100),
+                PriorityTag.low(),
             ],
           ),
         ],
