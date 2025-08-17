@@ -34,6 +34,7 @@ import 'state/proposal_state.dart';
 import 'state/notification_state.dart';
 import 'state/task_state.dart';
 
+import 'Theme/app_styles.dart';
 import 'environment.dart';
 
 void main() async {
