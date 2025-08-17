@@ -637,12 +637,7 @@ class _UpcomingEventCard extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          TextButton.icon(
-                            icon: const Icon(Icons.edit_outlined, size: 18),
-                            label: const Text("Edit"),
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.white,
-                            ),
+                          EditButton(
                             onPressed: () {
                               final masterEvent = context
                                   .read<CalendarState>()
@@ -664,12 +659,7 @@ class _UpcomingEventCard extends StatelessWidget {
                             },
                           ),
                           const SizedBox(width: 8),
-                          TextButton.icon(
-                            icon: const Icon(Icons.delete_outline, size: 18),
-                            label: const Text("Delete"),
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.red.shade300,
-                            ),
+                          DeleteButton(
                             onPressed: () => _showDeleteDialog(context, event),
                           ),
                         ],
