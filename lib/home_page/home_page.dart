@@ -686,26 +686,17 @@ class _EventPollCard extends StatelessWidget {
         children: [
           Text(
             "POLL",
-            style: GoogleFonts.inter(
-              color: Colors.cyan,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.5,
-            ),
+            style: context.appStyle.captionStyle.copyWith(color: Colors.cyan),
           ),
           const SizedBox(height: 4),
           Text(
             poll.title,
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: context.appStyle.headingStyle,
           ),
           const SizedBox(height: 8),
           Text(
             "You have ${poll.proposedTimes.length} time options. Tap to vote.",
-            style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
+            style: context.appStyle.bodyStyle,
           ),
           // In a real implementation, tapping this card would navigate
           // to a detail screen where the user can vote.
