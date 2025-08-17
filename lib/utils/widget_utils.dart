@@ -99,7 +99,7 @@ class WidgetUtils {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 64, color: textColor.withOpacity(0.5)),
+              Icon(icon, size: 64, color: textColor.withValues(alpha: 0.5)),
               buildSpacer(height: 16),
             ],
             Text(
