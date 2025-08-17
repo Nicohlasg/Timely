@@ -75,7 +75,7 @@ class WidgetUtils {
             buildSpacer(height: 12),
             Text(
               message,
-              style: GoogleFonts.inter(color: color.withOpacity(0.7)),
+              style: GoogleFonts.inter(color: color.withValues(alpha: 0.7)),
               textAlign: TextAlign.center,
             ),
           ],
