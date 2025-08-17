@@ -77,7 +77,6 @@ class MainApp extends StatelessWidget {
           ),
         ),
         ChangeNotifierProvider(create: (_) => PollState()),
-        // In your MultiProvider list
         ChangeNotifierProvider(create: (_) => GroupState()),
         ChangeNotifierProvider(create: (_) => ProposalState()),
         ChangeNotifierProvider(create: (_) => NotificationState()),
