@@ -154,7 +154,7 @@ class WidgetUtils {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withValues(alpha: 0.1),
         borderRadius: borderRadius ?? BorderRadius.circular(4),
       ),
     );
