@@ -706,32 +706,9 @@ class _EventPollCard extends StatelessWidget {
   }
 }
 
-class _Tag extends StatelessWidget {
-  final String text;
-  final Color color;
-  const _Tag({required this.text, required this.color});
+// Removed old _Tag class - now using AppTag from common widgets
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        text,
-        style: GoogleFonts.inter(
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          color: Colors.black.withValues(alpha: 0.7),
-        ),
-      ),
-    );
-  }
-}
-
-class _TaskItem extends StatefulWidget {
+class _NoScrollbarBehavior extends ScrollBehavior {
   final Task task;
 
   const _TaskItem({
