@@ -340,7 +340,28 @@ class _HomeViewState extends State<HomeView> {
                   return Column(
                     children: upcomingTasks
                         .take(5)
-                        .map((task) => _TaskItem(task: task))
+                        .map((task) => TaskCard(
+                          title: task.title,
+                          description: task.description.isNotEmpty ? task.description : null,
+                          isCompleted: task.isCompleted,
+                          onToggle: () => context.read<TaskState>().toggleTaskCompletion(task.id),
+                          trailingWidget: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                task.dueDateText,
+                                style: context.appStyle.subheadingStyle.copyWith(fontSize: 14),
+                              ),
+                              const SizedBox(height: 4),
+                              if (task.priority == TaskPriority.high)
+                                PriorityTag.high(),
+                              if (task.priority == TaskPriority.medium)
+                                PriorityTag.medium(),
+                              if (task.priority == TaskPriority.low)
+                                PriorityTag.low(),
+                            ],
+                          ),
+                        ))
                         .toList(),
                   );
                 },
