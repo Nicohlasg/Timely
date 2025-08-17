@@ -42,34 +42,32 @@ Future<void> _showDeleteDialog(
   );
   final isRecurring = masterEvent.repeatRule != RepeatRule.never;
 
-  await showDialog(
-    context: context,
-    builder: (context) => DeleteEventDialog(
-      event: event,
-      masterEvent: masterEvent,
-      isRecurring: isRecurring,
-      onDelete: (deleteOption) async {
-        Navigator.of(context).pop();
-        switch (deleteOption) {
-          case 'this':
-            await calendarState.deleteSingleOccurrence(
-              masterEvent,
-              event.start,
-            );
-            break;
-          case 'following':
-            await calendarState.deleteThisAndFollowing(
-              masterEvent,
-              event.start,
-            );
-            break;
-          case 'all':
-            await calendarState.deleteEvent(masterEvent.id);
-            break;
-        }
-      },
-    ),
+  final deleteOption = await DialogUtils.showDeleteEventDialog(
+    context,
+    event: event,
+    masterEvent: masterEvent,
+    isRecurring: isRecurring,
   );
+
+  if (deleteOption != null) {
+    switch (deleteOption) {
+      case 'this':
+        await calendarState.deleteSingleOccurrence(
+          masterEvent,
+          event.start,
+        );
+        break;
+      case 'following':
+        await calendarState.deleteThisAndFollowing(
+          masterEvent,
+          event.start,
+        );
+        break;
+      case 'all':
+        await calendarState.deleteEvent(masterEvent.id);
+        break;
+    }
+  }
 }
 
 class HomePage extends StatefulWidget {
