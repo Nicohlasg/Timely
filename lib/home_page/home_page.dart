@@ -608,15 +608,12 @@ class _UpcomingEventCard extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          _Tag(
-                            text: durationText,
-                            color: Colors.orange.shade100,
-                          ),
+                          DurationTag(duration: duration),
                           const SizedBox(width: 8),
-                          _Tag(text: "IN-PERSON", color: Colors.blue.shade100),
+                          LocationTag(),
                           const SizedBox(width: 8),
                           if (event.importance == EventImportance.high)
-                            _Tag(text: "HIGH", color: Colors.red.shade100),
+                            PriorityTag.high(),
                           const Spacer(),
                         ],
                       ),
