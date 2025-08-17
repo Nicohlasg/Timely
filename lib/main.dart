@@ -40,37 +40,31 @@ import 'environment.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    await FirebaseAppCheck.instance.activate(
+      androidProvider:
+          kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+      appleProvider:
+          kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
+    );
+    final NotificationService notificationService = NotificationService();
+    await notificationService.initNotifications();
+  } catch (e, s) {
+    print('Failed to initialize Firebase: $e');
+    print(s);
+  }
+  runApp(const MainApp());
+}
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+class MainApp extends StatelessWidget {
+  const MainApp({super.key});
 
-  await FirebaseAppCheck.instance.activate(
-    androidProvider:
-        kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
-    appleProvider:
-        kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
-  );
-  final NotificationService notificationService = NotificationService();
-  await notificationService.initNotifications();
-
-  // Optional debug check
-  assert(() {
-    for (final k in [
-      'GOOGLE_SERVER_CLIENT_ID',
-      'CHAT_FUNCTION_URL',
-      'SYNC_STORE_TOKEN_URL',
-      'SYNC_CALENDAR_URL',
-      'OCR_FUNCTION_URL'
-    ]) {
-      if (dotenv.env[k] == null) {
-        debugPrint('Env var not set: $k (may rely on --dart-define)');
-      }
-    }
-    return true;
-  }());
-  runApp(
-    MultiProvider(
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
       providers: [
         Provider(create: (_) => GoogleCalendarService()),
         ChangeNotifierProvider(create: (_) => CalendarState()),
