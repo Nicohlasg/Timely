@@ -126,110 +126,148 @@ function detectRepeatRule(events) {
 }
 
 
-exports.storeAuthToken = functions.https.onRequest((req, res) => {
-  cors(req, res, async () => {
-    if (req.method !== "POST") {
-      return res.status(405).send("Method Not Allowed");
+exports.storeAuthToken = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "The function must be called while authenticated.",
+    );
+  }
+  const userId = context.auth.uid;
+  const { code } = data;
+
+  if (!code) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Missing required parameter: code.",
+    );
+  }
+
+  try {
+    const { tokens } = await oauth2Client.getToken(code);
+    const refreshToken = tokens.refresh_token;
+    if (refreshToken) {
+      await db.collection("google_tokens").doc(userId).set({
+        refreshToken: refreshToken,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return { success: true, message: "Successfully stored refresh token." };
+    } else {
+      return { success: false, message: "No refresh token found. User may have already granted consent." };
     }
-    const { code, userId } = req.body;
-    if (!code || !userId) {
-      return res.status(400).send("Missing auth code or user ID.");
-    }
-    try {
-      const { tokens } = await oauth2Client.getToken(code);
-      const refreshToken = tokens.refresh_token;
-      if (refreshToken) {
-        await db.collection("google_tokens").doc(userId).set({
-          refreshToken: refreshToken,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        res.status(200).send("Successfully stored refresh token.");
-      } else {
-        res.status(400).send("No refresh token found. User may have already granted consent.");
-      }
-    } catch (error) {
-      console.error("Error exchanging auth code:", error.response?.data || error.message);
-      res.status(500).send("Failed to exchange auth code for token.");
-    }
-  });
+  } catch (error) {
+    console.error("Error exchanging auth code:", error.response?.data || error.message);
+    throw new functions.https.HttpsError(
+      "internal",
+      "Failed to exchange auth code for token.",
+    );
+  }
 });
 
-exports.syncGoogleCalendar = functions.runWith({ timeoutSeconds: 180, memory: "512MB" }).https.onRequest((req, res) => {
-  cors(req, res, async () => {
-    const { userId, calendarId } = req.body;
-    if (!userId) {
-      return res.status(400).send("User ID is required.");
+exports.syncGoogleCalendar = functions.runWith({ timeoutSeconds: 180, memory: "512MB" }).https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "The function must be called while authenticated.",
+    );
+  }
+  const userId = context.auth.uid;
+  const { calendarId } = data;
+  const targetCalendarId = calendarId || "primary";
+
+  try {
+    const tokenDocRef = db.collection("google_tokens").doc(userId);
+    const tokenDoc = await tokenDocRef.get();
+    if (!tokenDoc.exists) {
+      throw new functions.https.HttpsError("unauthenticated", "User not authenticated with Google.");
     }
-    const targetCalendarId = calendarId || "primary";
 
-    try {
-      const tokenDocRef = db.collection("google_tokens").doc(userId);
-      const tokenDoc = await tokenDocRef.get();
-      if (!tokenDoc.exists) {
-        return res.status(401).send("User not authenticated with Google.");
+    oauth2Client.setCredentials({ refresh_token: tokenDoc.data().refreshToken });
+    const calendar = google.calendar({ version: "v3", auth: oauth2Client });
+
+    const userTimezone = "Asia/Singapore";
+
+    const googleEventsResult = await calendar.events.list({
+      calendarId: targetCalendarId,
+      timeMin: (new Date()).toISOString(),
+      timeZone: userTimezone,
+      maxResults: 250,
+      singleEvents: true,
+      orderBy: "startTime",
+    });
+    const googleEvents = googleEventsResult.data.items || [];
+
+    const firebaseSnapshot = await db.collection("events").where("userId", "==", userId).get();
+
+    const googleIdToFirebaseEvent = {};
+    firebaseSnapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      if (data.googleEventId) {
+        googleIdToFirebaseEvent[data.googleEventId] = { id: doc.id, ...data };
       }
+    });
 
-      oauth2Client.setCredentials({ refresh_token: tokenDoc.data().refreshToken });
-      const calendar = google.calendar({ version: "v3", auth: oauth2Client });
-
-      const userTimezone = "Asia/Singapore";
-
-      const googleEventsResult = await calendar.events.list({
-        calendarId: targetCalendarId,
-        timeMin: (new Date()).toISOString(),
-        timeZone: userTimezone,
-        maxResults: 250,
-        singleEvents: true,
-        orderBy: "startTime",
-      });
-      const googleEvents = googleEventsResult.data.items || [];
-
-      const firebaseSnapshot = await db.collection("events").where("userId", "==", userId).get();
-
-      const googleIdToFirebaseEvent = {};
-      firebaseSnapshot.docs.forEach((doc) => {
-        const data = doc.data();
-        if (data.googleEventId) {
-          googleIdToFirebaseEvent[data.googleEventId] = { id: doc.id, ...data };
-        }
-      });
-
-      const eventsByTitle = {};
-      for (const gEvent of googleEvents) {
-        if (gEvent.status === 'cancelled') continue;
-        const title = gEvent.summary || "Untitled Event";
-        if (!eventsByTitle[title]) {
-          eventsByTitle[title] = [];
-        }
-        eventsByTitle[title].push(gEvent);
+    const eventsByTitle = {};
+    for (const gEvent of googleEvents) {
+      if (gEvent.status === 'cancelled') continue;
+      const title = gEvent.summary || "Untitled Event";
+      if (!eventsByTitle[title]) {
+        eventsByTitle[title] = [];
       }
+      eventsByTitle[title].push(gEvent);
+    }
 
-      const batch = db.batch();
+    const batch = db.batch();
 
-      for (const title in eventsByTitle) {
-        const gEventsInGroup = eventsByTitle[title];
-        const { rule, until } = detectRepeatRule(gEventsInGroup);
-        const color = getColorForTitle(title);
+    for (const title in eventsByTitle) {
+      const gEventsInGroup = eventsByTitle[title];
+      const { rule, until } = detectRepeatRule(gEventsInGroup);
+      const color = getColorForTitle(title);
 
-        if (rule !== "never") {
-          const masterGEvent = gEventsInGroup[0];
-          const existingFbEvent = Object.values(googleIdToFirebaseEvent).find(
-            (e) => e.title === title && e.repeatRule !== 'never'
-          );
+      if (rule !== "never") {
+        const masterGEvent = gEventsInGroup[0];
+        const existingFbEvent = Object.values(googleIdToFirebaseEvent).find(
+          (e) => e.title === title && e.repeatRule !== 'never'
+        );
 
+        const eventData = {
+          userId: userId,
+          title: masterGEvent.summary || "Untitled Event",
+          location: masterGEvent.location || "",
+          start: new Date(masterGEvent.start.dateTime || masterGEvent.start.date),
+          end: new Date(masterGEvent.end.dateTime || masterGEvent.end.date),
+          allDay: !!masterGEvent.start.date,
+          color: color,
+          repeatRule: rule,
+          repeatUntil: until ? until.toISOString().split('T')[0] : null,
+          exceptions: [],
+          importance: "medium",
+          googleEventId: masterGEvent.id,
+        };
+
+        if (existingFbEvent) {
+          const eventRef = db.collection("events").doc(existingFbEvent.id);
+          batch.update(eventRef, eventData);
+        } else {
+          const eventRef = db.collection("events").doc();
+          batch.set(eventRef, eventData);
+        }
+      } else {
+        for (const gEvent of gEventsInGroup) {
+          const existingFbEvent = googleIdToFirebaseEvent[gEvent.id];
           const eventData = {
             userId: userId,
-            title: masterGEvent.summary || "Untitled Event",
-            location: masterGEvent.location || "",
-            start: new Date(masterGEvent.start.dateTime || masterGEvent.start.date),
-            end: new Date(masterGEvent.end.dateTime || masterGEvent.end.date),
-            allDay: !!masterGEvent.start.date,
+            googleEventId: gEvent.id,
+            title: gEvent.summary || "Untitled Event",
+            location: gEvent.location || "",
+            start: new Date(gEvent.start.dateTime || gEvent.start.date),
+            end: new Date(gEvent.end.dateTime || gEvent.end.date),
+            allDay: !!gEvent.start.date,
             color: color,
-            repeatRule: rule,
-            repeatUntil: until ? until.toISOString().split('T')[0] : null,
+            repeatRule: "never",
+            repeatUntil: null,
             exceptions: [],
             importance: "medium",
-            googleEventId: masterGEvent.id,
           };
 
           if (existingFbEvent) {
@@ -239,48 +277,22 @@ exports.syncGoogleCalendar = functions.runWith({ timeoutSeconds: 180, memory: "5
             const eventRef = db.collection("events").doc();
             batch.set(eventRef, eventData);
           }
-        } else {
-          for (const gEvent of gEventsInGroup) {
-            const existingFbEvent = googleIdToFirebaseEvent[gEvent.id];
-            const eventData = {
-              userId: userId,
-              googleEventId: gEvent.id,
-              title: gEvent.summary || "Untitled Event",
-              location: gEvent.location || "",
-              start: new Date(gEvent.start.dateTime || gEvent.start.date),
-              end: new Date(gEvent.end.dateTime || gEvent.end.date),
-              allDay: !!gEvent.start.date,
-              color: color,
-              repeatRule: "never",
-              repeatUntil: null,
-              exceptions: [],
-              importance: "medium",
-            };
-
-            if (existingFbEvent) {
-              const eventRef = db.collection("events").doc(existingFbEvent.id);
-              batch.update(eventRef, eventData);
-            } else {
-              const eventRef = db.collection("events").doc();
-              batch.set(eventRef, eventData);
-            }
-          }
         }
       }
-
-      await batch.commit();
-
-      res.status(200).send("Sync successful.");
-
-    } catch (error) {
-      console.error("Error syncing Google Calendar:", error.response?.data || error.message, error.stack);
-      if (error.code === 401 || (error.response && error.response.status === 401)) {
-        await db.collection("google_tokens").doc(userId).delete();
-        return res.status(401).send("Authentication error. Please sign in again.");
-      }
-      res.status(500).send("An error occurred during sync.");
     }
-  });
+
+    await batch.commit();
+
+    return { success: true, message: "Sync successful." };
+
+  } catch (error) {
+    console.error("Error syncing Google Calendar:", error.response?.data || error.message, error.stack);
+    if (error.code === 401 || (error.response && error.response.status === 401)) {
+      await db.collection("google_tokens").doc(userId).delete();
+      throw new functions.https.HttpsError("unauthenticated", "Authentication error. Please sign in again.");
+    }
+    throw new functions.https.HttpsError("internal", "An error occurred during sync.");
+  }
 });
 
 
@@ -307,6 +319,7 @@ exports.findFreeSlots = functions.https.onCall(async (data, context) => {
       "The function must be called while authenticated.",
     );
   }
+  const myUid = context.auth.uid;
 
   const { userIds, durationMinutes, startRangeISO, endRangeISO } = data;
   if (!userIds || !Array.isArray(userIds) || userIds.length === 0 ||
@@ -316,14 +329,35 @@ exports.findFreeSlots = functions.https.onCall(async (data, context) => {
     );
   }
 
+  // 2. Authorization Check: Ensure the caller has permission to view schedules.
+  const authorizedUserIds = [myUid]; // The caller is always authorized for their own schedule.
+  const friendCheckPromises = userIds
+    .filter((id) => id !== myUid) // Don't check friendship with self
+    .map(async (friendId) => {
+      const friendshipId = [myUid, friendId].sort().join("_");
+      const friendshipDoc = await db.collection("friendships").doc(friendshipId).get();
+
+      if (friendshipDoc.exists && friendshipDoc.data().status === "accepted") {
+        authorizedUserIds.push(friendId);
+      } else {
+        // For security, we throw an error if any requested user is not a friend.
+        throw new functions.https.HttpsError(
+          "permission-denied",
+          `You do not have permission to view the schedule of user ${friendId}.`,
+        );
+      }
+    });
+
+  await Promise.all(friendCheckPromises);
+
   const startRange = new Date(startRangeISO);
   const endRange = new Date(endRangeISO);
   const eventsRef = db.collection("events");
   const allBusySlots = [];
 
   try {
-    // 2. Fetch events and expand recurrences for all users
-    const querySnapshot = await eventsRef.where("userId", "in", userIds).get();
+    // 3. Fetch events and expand recurrences for all authorized users
+    const querySnapshot = await eventsRef.where("userId", "in", authorizedUserIds).get();
 
     querySnapshot.forEach((doc) => {
       const event = doc.data();
