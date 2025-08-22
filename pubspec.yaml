@@ -38,6 +38,7 @@ dependencies:
   firebase_app_check: ^0.3.2+10
   weather_animation: ^1.1.2
   geolocator: ^14.0.2
+  geocoding: ^4.0.0
 
 dev_dependencies:
   flutter_test:
