@@ -13,9 +13,23 @@ class AppEnv {
     defaultValue: 'CHAT_URL_NOT_SET', // Provide a meaningful default
   );
 
-  static String get googleServerClientId => _get('GOOGLE_SERVER_CLIENT_ID');
-  static String get chatFunctionUrl => _get('CHAT_FUNCTION_URL');
-  static String get syncStoreTokenUrl => _get('SYNC_STORE_TOKEN_URL');
-  static String get syncCalendarUrl => _get('SYNC_CALENDAR_URL');
-  static String get ocrFunctionUrl => _get('OCR_FUNCTION_URL');
+  // Example for GOOGLE_SERVER_CLIENT_ID
+  static const String googleServerClientId = String.fromEnvironment(
+    'GOOGLE_SERVER_CLIENT_ID',
+    defaultValue: 'GOOGLE_ID_NOT_SET', // Provide a meaningful default
+  );
+
+  // You can add a helper to check if critical values were actually provided
+  static void checkValues() {
+    if (ocrFunctionUrl == 'OCR_URL_NOT_SET') {
+      print('WARNING: OCR_FUNCTION_URL was not provided via --dart-define.');
+    }
+    if (chatFunctionUrl == 'CHAT_URL_NOT_SET') {
+      print('WARNING: CHAT_FUNCTION_URL was not provided via --dart-define.');
+    }
+    if (googleServerClientId == 'GOOGLE_ID_NOT_SET') {
+      print('WARNING: GOOGLE_SERVER_CLIENT_ID was not provided via --dart-define.');
+    }
+    // Add checks for other critical variables
+  }
 }
