@@ -52,4 +52,3 @@ flutter:
     - assets/img/preset2.jpg
     - assets/img/preset3.jpg
     - assets/img/google_calendar_icon.png
-    - .env

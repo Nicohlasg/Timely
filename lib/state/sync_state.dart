@@ -1,21 +1,17 @@
 import 'dart:async';
-import 'dart:convert';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/calendar/v3.dart' as gcal;
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/google_calendar_service.dart';
 import '../state/calendar_state.dart';
-import '../environment.dart';
 
 class SyncState extends ChangeNotifier {
   final GoogleCalendarService _googleCalendarService;
   CalendarState _calendarState;
   late final StreamSubscription<GoogleSignInAuthenticationEvent> _authSubscription;
 
-  final String _storeTokenUrl = AppEnv.syncStoreTokenUrl;
-  final String _syncCalendarUrl = AppEnv.syncCalendarUrl;
   static const String _selectedCalPrefKey = 'selected_calendar_id';
 
   GoogleSignInAccount? _currentUser;
@@ -126,20 +122,12 @@ class SyncState extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await http.post(
-        Uri.parse(_syncCalendarUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'userId': _calendarState.currentUserId,
-          'calendarId': _selectedCalendarId,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        return "Sync complete!";
-      } else {
-        return "Sync failed: ${response.body}";
-      }
+      final HttpsCallable callable = FirebaseFunctions.instance.httpsCallable('syncGoogleCalendar');
+      final result = await callable.call({'calendarId': _selectedCalendarId});
+      final message = result.data['message'] as String? ?? "Sync complete!";
+      return message;
+    } on FirebaseFunctionsException catch (e) {
+      return "Sync failed: ${e.message}";
     } catch (e) {
       return "An error occurred: $e";
     } finally {
@@ -162,15 +150,11 @@ class SyncState extends ChangeNotifier {
     try {
       final serverAuthCode = await _googleCalendarService.getServerAuthCode(user);
       if (serverAuthCode != null && _calendarState.currentUserId != null) {
-        await http.post(
-          Uri.parse(_storeTokenUrl),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'code': serverAuthCode,
-            'userId': _calendarState.currentUserId,
-          }),
-        );
+        final HttpsCallable callable = FirebaseFunctions.instance.httpsCallable('storeAuthToken');
+        await callable.call({'code': serverAuthCode});
       }
+    } on FirebaseFunctionsException catch (e) {
+      print("Error sending auth code to server: ${e.code} - ${e.message}");
     } catch (e) {
       print("Error sending auth code to server: $e");
     }
