@@ -59,7 +59,7 @@ class _ProposalCard extends StatelessWidget {
     final formattedTime = "${DateFormat.jm().format(proposal.start.toDate())} - ${DateFormat.jm().format(proposal.end.toDate())}";
 
     return Card(
-      color: Colors.white.withOpacity(0.15),
+      color: Colors.white.withValues(alpha: 0.15),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       margin: const EdgeInsets.only(bottom: 16),
       child: Padding(

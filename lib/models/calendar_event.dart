@@ -79,7 +79,7 @@ class CalendarEvent {
     'location': location,
     'start': start.toIso8601String(),
     'end': end.toIso8601String(),
-    'color': color.value,
+    'color': color.toARGB32(),
     'allDay': allDay,
     'repeatRule': repeatRule.name,
     'repeatUntil': repeatUntil?.toIso8601String(),

@@ -457,7 +457,7 @@ class _EditEventScreenState extends State<EditEventScreen> {
                 _showEndTimePicker = false;
               }
             }),
-            activeColor: Colors.blue,
+            activeThumbColor: Colors.blue,
             activeTrackColor: Colors.blue.withValues(alpha: 0.5),
             inactiveThumbColor: Colors.white70,
             inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
@@ -631,7 +631,7 @@ class _EditEventScreenState extends State<EditEventScreen> {
                     runSpacing: 10,
                     alignment: WrapAlignment.center,
                     children: _colorPalette.expand((row) => row).map((color) {
-                      bool isSelected = _color.value == color.value;
+                      bool isSelected = _color.toARGB32() == color.toARGB32();
                       return GestureDetector(
                         onTap: () {
                           setState(() {

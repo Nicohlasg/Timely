@@ -31,7 +31,7 @@ class AppTag extends StatelessWidget {
         text,
         style: style.captionStyle.copyWith(
           fontSize: 10,
-          color: textColor ?? Colors.black.withOpacity(0.7),
+          color: textColor ?? Colors.black.withValues(alpha: 0.7),
         ),
       ),
     );

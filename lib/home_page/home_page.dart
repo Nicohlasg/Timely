@@ -384,7 +384,7 @@ class _HomeViewState extends State<HomeView> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: Colors.white.withOpacity(0.5),
+              color: Colors.white.withValues(alpha: 0.5),
               width: 2,
             ),
             image: _user?.photoURL != null
@@ -407,7 +407,7 @@ class _HomeViewState extends State<HomeView> {
               Text(
                 "Welcome back,",
                 style: GoogleFonts.inter(
-                  color: Colors.white.withOpacity(0.8),
+                  color: Colors.white.withValues(alpha: 0.8),
                   fontSize: 16,
                 ),
               ),

@@ -66,7 +66,7 @@ class FriendProfilePage extends StatelessWidget {
                 } else if (value == 'report') {
                   showDialog(
                     context: context,
-                    barrierColor: Colors.black.withOpacity(0.3),
+                    barrierColor: Colors.black.withValues(alpha: 0.3),
                     builder: (context) => ReportDialog(reportedUser: friendProfile),
                   );
                 }

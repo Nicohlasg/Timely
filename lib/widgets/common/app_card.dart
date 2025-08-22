@@ -174,7 +174,7 @@ class TaskCard extends StatelessWidget {
                   title,
                   style: style.subheadingStyle.copyWith(
                     color: isCompleted 
-                      ? style.onSurfaceColor.withOpacity(0.5)
+                      ? style.onSurfaceColor.withValues(alpha: 0.5)
                       : style.onSurfaceColor,
                     decoration: isCompleted 
                       ? TextDecoration.lineThrough 

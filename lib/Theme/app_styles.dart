@@ -71,20 +71,20 @@ class GlassmorphismStyleConfig extends AppStyleConfig {
   
   @override
   TextStyle get subheadingStyle => GoogleFonts.inter(
-    color: onSurfaceColor.withOpacity(0.8),
+    color: onSurfaceColor.withValues(alpha: 0.8),
     fontSize: 16,
     fontWeight: FontWeight.w600,
   );
   
   @override
   TextStyle get bodyStyle => GoogleFonts.inter(
-    color: onSurfaceColor.withOpacity(0.7),
+    color: onSurfaceColor.withValues(alpha: 0.7),
     fontSize: 14,
   );
   
   @override
   TextStyle get captionStyle => GoogleFonts.inter(
-    color: onSurfaceColor.withOpacity(0.6),
+    color: onSurfaceColor.withValues(alpha: 0.6),
     fontSize: 12,
     fontWeight: FontWeight.bold,
     letterSpacing: 1.5,
@@ -98,21 +98,21 @@ class GlassmorphismStyleConfig extends AppStyleConfig {
   
   @override
   BoxDecoration dialogDecoration() => BoxDecoration(
-    color: surfaceColor.withOpacity(0.95),
+    color: surfaceColor.withValues(alpha: 0.95),
     borderRadius: BorderRadius.circular(borderRadius),
     border: Border.all(color: borderColor),
   );
   
   @override
   BoxDecoration cardDecoration() => BoxDecoration(
-    color: onSurfaceColor.withOpacity(0.2),
+    color: onSurfaceColor.withValues(alpha: 0.2),
     borderRadius: BorderRadius.circular(borderRadius),
     border: Border.all(color: borderColor),
   );
   
   @override
   BoxDecoration containerDecoration() => BoxDecoration(
-    color: onSurfaceColor.withOpacity(0.1),
+    color: onSurfaceColor.withValues(alpha: 0.1),
     borderRadius: BorderRadius.circular(borderRadius),
     border: Border.all(color: borderColor),
   );

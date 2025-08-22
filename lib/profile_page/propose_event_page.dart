@@ -162,7 +162,7 @@ class _ProposeEventPageState extends State<ProposeEventPage> {
                 _showEndTimePicker = false;
               }
             }),
-            activeColor: Colors.blue,
+            activeThumbColor: Colors.blue,
           ),
         ],
       ),

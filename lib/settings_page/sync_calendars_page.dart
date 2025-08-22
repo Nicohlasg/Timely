@@ -37,7 +37,7 @@ class SyncCalendarsPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: Colors.white.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white30),
       ),
@@ -139,7 +139,7 @@ class SyncCalendarsPage extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: syncState.selectedCalendarId,
+          initialValue: syncState.selectedCalendarId,
           onChanged: (String? newValue) {
             if (newValue != null) {
               syncState.selectCalendar(newValue);

@@ -33,7 +33,7 @@ class _SetStatusDialogState extends State<SetStatusDialog> {
     return BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
       child: AlertDialog(
-        backgroundColor: const Color(0xFF2D3748).withOpacity(0.95),
+        backgroundColor: const Color(0xFF2D3748).withValues(alpha: 0.95),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
           side: const BorderSide(color: Colors.white30),
@@ -58,9 +58,9 @@ class _SetStatusDialogState extends State<SetStatusDialog> {
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             hintText: 'What are you up to?',
-            hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
             filled: true,
-            fillColor: Colors.white.withOpacity(0.1),
+            fillColor: Colors.white.withValues(alpha: 0.1),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
