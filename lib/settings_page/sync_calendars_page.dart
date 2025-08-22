@@ -139,7 +139,7 @@ class SyncCalendarsPage extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          initialValue: syncState.selectedCalendarId,
+          value: syncState.selectedCalendarId,
           onChanged: (String? newValue) {
             if (newValue != null) {
               syncState.selectCalendar(newValue);

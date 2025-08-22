@@ -457,7 +457,7 @@ class _EditEventScreenState extends State<EditEventScreen> {
                 _showEndTimePicker = false;
               }
             }),
-            activeThumbColor: Colors.blue,
+            activeColor: Colors.blue,
             activeTrackColor: Colors.blue.withValues(alpha: 0.5),
             inactiveThumbColor: Colors.white70,
             inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
