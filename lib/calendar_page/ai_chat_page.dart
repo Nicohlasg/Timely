@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
@@ -78,9 +79,19 @@ class _AiChatPageState extends State<AiChatPage> {
         throw Exception("Missing CHAT_FUNCTION_URL.");
       }
 
+      // NEW: Get the Firebase Auth ID token
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception("User not authenticated.");
+      }
+      final idToken = await user.getIdToken();
+
       final response = await http.post(
         Uri.parse(_cloudFunctionUrl),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken', // NEW: Add the auth header
+        },
         body: jsonEncode({
           'prompt': text,
           'current_events': upcomingEvents,

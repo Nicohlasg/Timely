@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:convert';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -834,10 +835,17 @@ class _CalendarPageState extends State<CalendarPage>
     }
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated.');
+      }
+      final idToken = await user.getIdToken();
+
       final request = http.MultipartRequest(
         'POST',
         Uri.parse(cloudFunctionUrl),
       );
+      request.headers['Authorization'] = 'Bearer $idToken';
 
       if (kIsWeb) {
         final imageBytes = await imageFile.readAsBytes();
