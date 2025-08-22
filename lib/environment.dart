@@ -1,8 +1,17 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AppEnv {
-  static String _get(String key) =>
-      dotenv.env[key] ?? String.fromEnvironment(key, defaultValue: '');
+  // Static getter for OCR Function URL, using String.fromEnvironment
+  static const String ocrFunctionUrl = String.fromEnvironment(
+    'OCR_FUNCTION_URL',
+    defaultValue: 'OCR_URL_NOT_SET', // Provide a meaningful default
+  );
+
+  // Static getter for AI Chatbot Function URL, using String.fromEnvironment
+  static const String chatFunctionUrl = String.fromEnvironment(
+    'CHAT_FUNCTION_URL',
+    defaultValue: 'CHAT_URL_NOT_SET', // Provide a meaningful default
+  );
 
   static String get googleServerClientId => _get('GOOGLE_SERVER_CLIENT_ID');
   static String get chatFunctionUrl => _get('CHAT_FUNCTION_URL');
