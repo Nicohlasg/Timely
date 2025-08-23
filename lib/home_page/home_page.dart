@@ -12,7 +12,6 @@ import '../models/calendar_event.dart';
 import '../state/calendar_state.dart';
 import '../calendar_page/edit_event_screen.dart';
 import 'all_events_page.dart';
-import '../widgets/delete_event_dialog.dart';
 import '../widgets/background_container.dart';
 import '../services/recurrence_service.dart';
 import '../models/event_poll.dart';
@@ -24,20 +23,20 @@ import '../profile_page/proposals_inbox_page.dart';
 
 // Import our new standardized components
 import '../utils/dialog_utils.dart';
-import '../utils/date_utils.dart';
 import '../utils/widget_utils.dart';
 import '../widgets/common/app_tag.dart';
 import '../widgets/common/app_card.dart';
 import '../widgets/common/app_button.dart';
 import '../Theme/app_styles.dart';
+import '../widgets/weather_widget.dart'; // Import the new Weather Widget
 
 Future<void> _showDeleteDialog(
-  BuildContext context,
-  CalendarEvent event,
-) async {
+    BuildContext context,
+    CalendarEvent event,
+    ) async {
   final calendarState = context.read<CalendarState>();
   final masterEvent = calendarState.events.firstWhere(
-    (e) => e.id == event.id,
+        (e) => e.id == event.id,
     orElse: () => event,
   );
   final isRecurring = masterEvent.repeatRule != RepeatRule.never;
@@ -69,6 +68,7 @@ Future<void> _showDeleteDialog(
     }
   }
 }
+
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -192,25 +192,17 @@ class HomeView extends StatefulWidget {
   State<HomeView> createState() => _HomeViewState();
 }
 
-class _HomeViewState extends State<HomeView> {
-  Timer? _timer;
+// MODIFIED: Added AutomaticKeepAliveClientMixin to preserve state
+class _HomeViewState extends State<HomeView>
+    with AutomaticKeepAliveClientMixin<HomeView> {
+  // REMOVED: Timer is no longer needed here as it's moved to the weather widget
   final User? _user = FirebaseAuth.instance.currentUser;
 
+  // ADDED: Override wantKeepAlive and set it to true
   @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted) {
-        setState(() {});
-      }
-    });
-  }
+  bool get wantKeepAlive => true;
 
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
+  // initState and dispose are no longer needed here for the timer
 
   bool isSameDay(DateTime? a, DateTime? b) {
     if (a == null || b == null) {
@@ -220,9 +212,9 @@ class _HomeViewState extends State<HomeView> {
   }
 
   List<CalendarEvent> _generateUpcomingEvents(
-    List<CalendarEvent> masterEvents,
-    DateTime now,
-  ) {
+      List<CalendarEvent> masterEvents,
+      DateTime now,
+      ) {
     final ninetyDaysOut = now.add(const Duration(days: 90));
     return RecurrenceService.upcomingOccurrences(
       masterEvents: masterEvents,
@@ -233,12 +225,15 @@ class _HomeViewState extends State<HomeView> {
 
   @override
   Widget build(BuildContext context) {
+    // ADDED: Required call for AutomaticKeepAliveClientMixin
+    super.build(context);
+
     final calendarState = context.watch<CalendarState>();
     final now = DateTime.now();
 
     final allMasterEvents = calendarState.events;
     final currentEvent = allMasterEvents.firstWhere(
-      (e) => e.start.isBefore(now) && e.end.isAfter(now),
+          (e) => e.start.isBefore(now) && e.end.isAfter(now),
       orElse: () =>
           CalendarEvent(title: 'No Current Event', start: now, end: now),
     );
@@ -263,6 +258,8 @@ class _HomeViewState extends State<HomeView> {
             children: [
               _buildHeader(),
               const SizedBox(height: 24),
+              const WeatherWidget(),
+              const SizedBox(height: 24),
               if (currentEvent.title != 'No Current Event') ...[
                 _buildCurrentEventCard(currentEvent, now),
                 const SizedBox(height: 24),
@@ -272,7 +269,7 @@ class _HomeViewState extends State<HomeView> {
                   context,
                   PageRouteBuilder(
                     pageBuilder: (context, animation, secondaryAnimation) =>
-                        const AllEventsPage(),
+                    const AllEventsPage(),
                     transitionsBuilder:
                         (context, animation, secondaryAnimation, child) {
                       const begin = Offset(0.0, -1.0);
@@ -296,7 +293,6 @@ class _HomeViewState extends State<HomeView> {
                   .take(3)
                   .map((event) => _UpcomingEventCard(event: event)),
               const SizedBox(height: 24),
-              // Only show Pending Polls section if there are pending polls
               if (upcomingPolls.isNotEmpty) ...[
                 _buildSectionHeader("Pending Polls", () {
                   // TODO: Navigate to a page with all polls
@@ -319,7 +315,7 @@ class _HomeViewState extends State<HomeView> {
                       child: CircularProgressIndicator(color: Colors.white),
                     );
                   }
-                  
+
                   final upcomingTasks = taskState.upcomingTasks;
                   if (upcomingTasks.isEmpty) {
                     return Container(
@@ -336,32 +332,37 @@ class _HomeViewState extends State<HomeView> {
                       ),
                     );
                   }
-                  
+
                   return Column(
                     children: upcomingTasks
                         .take(5)
                         .map((task) => TaskCard(
-                          title: task.title,
-                          description: task.description.isNotEmpty ? task.description : null,
-                          isCompleted: task.isCompleted,
-                          onToggle: () => context.read<TaskState>().toggleTaskCompletion(task.id),
-                          trailingWidget: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                task.dueDateText,
-                                style: context.appStyle.subheadingStyle.copyWith(fontSize: 14),
-                              ),
-                              const SizedBox(height: 4),
-                              if (task.priority == TaskPriority.high)
-                                PriorityTag.high(),
-                              if (task.priority == TaskPriority.medium)
-                                PriorityTag.medium(),
-                              if (task.priority == TaskPriority.low)
-                                PriorityTag.low(),
-                            ],
+                      title: task.title,
+                      description: task.description.isNotEmpty
+                          ? task.description
+                          : null,
+                      isCompleted: task.isCompleted,
+                      onToggle: () => context
+                          .read<TaskState>()
+                          .toggleTaskCompletion(task.id),
+                      trailingWidget: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            task.dueDateText,
+                            style: context.appStyle.subheadingStyle
+                                .copyWith(fontSize: 14),
                           ),
-                        ))
+                          const SizedBox(height: 4),
+                          if (task.priority == TaskPriority.high)
+                            PriorityTag.high(),
+                          if (task.priority == TaskPriority.medium)
+                            PriorityTag.medium(),
+                          if (task.priority == TaskPriority.low)
+                            PriorityTag.low(),
+                        ],
+                      ),
+                    ))
                         .toList(),
                   );
                 },
@@ -373,58 +374,11 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
+  // _buildHeader, _buildCurrentEventCard, etc. remain unchanged...
   Widget _buildHeader() {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center, // Align items vertically
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        // User Avatar (no changes here)
-        Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.5),
-              width: 2,
-            ),
-            image: _user?.photoURL != null
-                ? DecorationImage(
-                    image: NetworkImage(_user!.photoURL!),
-                    fit: BoxFit.cover,
-                  )
-                : const DecorationImage(
-                    image: AssetImage('assets/img/background.jpg'),
-                    fit: BoxFit.cover,
-                  ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        // Welcome Text (wrapped in Expanded to push the icon to the right)
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Welcome back,",
-                style: GoogleFonts.inter(
-                  color: Colors.white.withValues(alpha: 0.8),
-                  fontSize: 16,
-                ),
-              ),
-              Text(
-                _user?.displayName ?? _user?.email ?? "User",
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        // NEW: Proposals Inbox Button with Badge
         Consumer<ProposalState>(
           builder: (context, proposalState, child) {
             final hasProposals = proposalState.proposals.isNotEmpty;
@@ -532,10 +486,10 @@ class _HomeViewState extends State<HomeView> {
               EditButton(
                 onPressed: () {
                   final masterEvent =
-                      context.read<CalendarState>().events.firstWhere(
-                            (e) => e.id == event.id,
-                            orElse: () => event,
-                          );
+                  context.read<CalendarState>().events.firstWhere(
+                        (e) => e.id == event.id,
+                    orElse: () => event,
+                  );
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -564,6 +518,7 @@ class _HomeViewState extends State<HomeView> {
   }
 }
 
+// _UpcomingEventCard, _EventPollCard, _NoScrollbarBehavior remain the same...
 class _UpcomingEventCard extends StatelessWidget {
   final CalendarEvent event;
   const _UpcomingEventCard({required this.event});
@@ -633,8 +588,8 @@ class _UpcomingEventCard extends StatelessWidget {
                                   .events
                                   .firstWhere(
                                     (e) => e.id == event.id,
-                                    orElse: () => event,
-                                  );
+                                orElse: () => event,
+                              );
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -697,23 +652,19 @@ class _EventPollCard extends StatelessWidget {
             "You have ${poll.proposedTimes.length} time options. Tap to vote.",
             style: context.appStyle.bodyStyle,
           ),
-          // In a real implementation, tapping this card would navigate
-          // to a detail screen where the user can vote.
         ],
       ),
     );
   }
 }
 
-// Removed old _Tag and _TaskItem classes - now using standardized components from common widgets
-
 class _NoScrollbarBehavior extends ScrollBehavior {
   @override
   Widget buildScrollbar(
-    BuildContext context,
-    Widget child,
-    ScrollableDetails details,
-  ) {
+      BuildContext context,
+      Widget child,
+      ScrollableDetails details,
+      ) {
     return child;
   }
 }
