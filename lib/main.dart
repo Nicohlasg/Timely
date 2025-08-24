@@ -41,25 +41,65 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // await dotenv.load(fileName: '.env');
   AppEnv.checkValues();
+
+  bool firebaseInitialized = false;
+
   try {
+    print("Attempting Firebase.initializeApp()...");
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    await FirebaseAppCheck.instance.activate(
-      androidProvider:
-          kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
-      appleProvider:
-          kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
-    );
-    final NotificationService notificationService = NotificationService();
-    await notificationService.initNotifications();
+    print("Firebase.initializeApp() completed successfully.");
+    firebaseInitialized = true;
+  } on FirebaseException catch (e) {
+    if (e.code == 'duplicate-app') {
+      print("Firebase.initializeApp() failed with 'duplicate-app'. Assuming already initialized.");
+      firebaseInitialized = true; // Treat as success for further steps
+    } else {
+      print("Firebase.initializeApp() failed with error: ${e.code} - ${e.message}");
+      // For other Firebase errors, you might want to handle them differently or rethrow.
+    }
   } catch (e, s) {
-    print('Failed to initialize Firebase: $e');
-    print(s);
+    // Catch any other non-Firebase exceptions during initializeApp
+    print("An unexpected error occurred during Firebase.initializeApp(): $e");
+    print("Stack trace: $s");
   }
-  runApp(const MainApp());
+
+  if (firebaseInitialized) {
+    try {
+      print("Activating Firebase App Check...");
+      await FirebaseAppCheck.instance.activate(
+        androidProvider:
+        kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+        appleProvider:
+        kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
+      );
+      print("Firebase App Check activated successfully.");
+
+      print("Initializing Notification Service...");
+      final NotificationService notificationService = NotificationService();
+      await notificationService.initNotifications();
+      print("Notification Service initialized successfully.");
+
+      print("All services initialized. Running app.");
+      runApp(const MainApp());
+    } catch (e, s) {
+      print("Error initializing AppCheck or NotificationService: $e");
+      print("Stack trace: $s");
+      // Decide how to proceed if these secondary services fail
+      // Maybe runApp with an error message or a limited functionality app
+      runApp(const MainApp()); // Or an error widget
+    }
+  } else {
+    print("Firebase could not be initialized. App might not function correctly.");
+    // Decide how to proceed if Firebase is absolutely critical and did not initialize
+    // runApp(const FirebaseErrorApp()); // Example: Show an error screen
+    runApp(const MainApp()); // Or try to run the app anyway, it will likely crash at Firebase usage
+  }
 }
 
+// ... (Rest of your MainApp, MyApp, UndoSnackBarHandler, AuthenticationWrapper classes remain the same) ...
+// (Make sure they are identical to the previous version you posted)
 class MainApp extends StatelessWidget {
   const MainApp({super.key});
 
@@ -219,3 +259,4 @@ class AuthenticationWrapper extends StatelessWidget {
     );
   }
 }
+
