@@ -22,6 +22,7 @@ class FriendState extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get currentUserId => _auth.currentUser?.uid;
 
+  List<Friendship> get allFriendships => _friendships; // Add this line
   List<Friendship> get acceptedFriends => _friendships.where((f) => f.status == FriendshipStatus.accepted).toList();
   List<Friendship> get pendingRequests => _friendships.where((f) => f.status == FriendshipStatus.pending && f.requesterId != currentUserId).toList();
 

@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart'; // Add this line
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -88,7 +89,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
 
     UIStatus getUiStatus(String userId) {
       // Use the comprehensive list of all friendships from the state
-      final friendship = friendState.friendships.firstWhere(
+      final friendship = friendState.allFriendships.firstWhere( // Use allFriendships here
         (f) => f.users.contains(userId),
         orElse: () => Friendship(uid: '', users: [], requesterId: '', status: FriendshipStatus.declined, createdAt: Timestamp.now()), // Return a default non-functional friendship
       );
