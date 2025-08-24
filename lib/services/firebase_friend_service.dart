@@ -13,9 +13,37 @@ class FirebaseFriendService {
 
   String? get currentUserId => _auth.currentUser?.uid;
 
-  // Search for users by email or username (prefix search, case-sensitive)
+  // Helper to get IDs of users who are in a 'blocked' friendship with the current user.
+  Future<Set<String>> _getBlockedUserIds() async {
+    if (currentUserId == null) return {};
+    try {
+      final snapshot = await _firestore
+          .collection('friendships')
+          .where('users', arrayContains: currentUserId)
+          .where('status', isEqualTo: 'blocked')
+          .get();
+
+      final blockedIds = <String>{};
+      for (final doc in snapshot.docs) {
+        final List<dynamic> users = doc.data()['users'];
+        // Find the other user's ID in the relationship
+        final otherUser = users.firstWhere((id) => id != currentUserId, orElse: () => null);
+        if (otherUser != null) {
+          blockedIds.add(otherUser);
+        }
+      }
+      return blockedIds;
+    } catch (e) {
+      print("Error getting blocked user IDs: $e");
+      return {}; // Return empty set on error
+    }
+  }
+
+  // Search for users by email or username, excluding blocked users.
   Future<List<UserProfileData>> searchUsers(String query) async {
     if (query.isEmpty) return [];
+
+    final blockedUserIds = await _getBlockedUserIds();
 
     try {
       // Username prefix search
@@ -38,7 +66,8 @@ class FirebaseFriendService {
 
       final users = <String, UserProfileData>{};
       for (final doc in [...usernameSnapshot.docs, ...emailSnapshot.docs]) {
-        if (doc.id == currentUserId) continue;
+        // Exclude self and blocked users
+        if (doc.id == currentUserId || blockedUserIds.contains(doc.id)) continue;
         users[doc.id] = UserProfileData.fromFirestore(doc);
       }
       return users.values.toList();
@@ -57,7 +86,9 @@ class FirebaseFriendService {
         final users = results.expand((snapshot) => snapshot.docs).toList();
         final uniqueUsers = {
           for (var doc in users)
-            if (doc.id != currentUserId) doc.id: UserProfileData.fromFirestore(doc)
+            // Exclude self and blocked users in fallback as well
+            if (doc.id != currentUserId && !blockedUserIds.contains(doc.id))
+              doc.id: UserProfileData.fromFirestore(doc)
         };
         return uniqueUsers.values.toList();
       } catch (_) {

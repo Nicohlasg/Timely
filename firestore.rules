@@ -48,12 +48,16 @@ service cloud.firestore {
       // A user can create a friendship if they are the requester and are included in the users array.
       allow create: if isAuthenticated() && isOwner(request.resource.data.requesterId) && request.auth.uid in request.resource.data.users;
 
-      // A user can update (accept/decline) a friendship if they are part of it.
-      // More specific logic could be added to prevent users from changing the status from 'accepted' back to 'pending', for example.
-      allow update: if isAuthenticated() && request.auth.uid in resource.data.users;
+      // Only the recipient (the user who is not the requester) can update the status to 'accepted'.
+      // This prevents a user from accepting their own friend request.
+      allow update: if isAuthenticated()
+                    && request.auth.uid in resource.data.users
+                    && request.auth.uid != resource.data.requesterId
+                    && request.resource.data.status == 'accepted'
+                    && resource.data.status == 'pending';
 
-      // Friendships should likely be marked as 'blocked' or 'inactive' rather than deleted from the client.
-      allow delete: if false;
+      // A user who is part of a friendship can delete it (to unfriend or decline a request).
+      allow delete: if isAuthenticated() && request.auth.uid in resource.data.users;
     }
 
     // =================================================================
