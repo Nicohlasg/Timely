@@ -2,7 +2,11 @@ import 'dart:ui';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:showcaseview/showcaseview.dart';
+import '../state/achievement_state.dart';
+import '../widgets/common/bouncy_button.dart';
 
 class LoginData extends ChangeNotifier {
   String _email = '';
@@ -79,7 +83,7 @@ class LoginData extends ChangeNotifier {
     return isValid;
   }
 
-  Future<String?> signIn() async {
+  Future<String?> signIn(BuildContext context) async {
     if (!validate()) {
       return "Please fix the errors above.";
     }
@@ -98,6 +102,15 @@ class LoginData extends ChangeNotifier {
         password: _password.trim(),
       );
 
+      // Check for first login achievement
+      final isFirstLogin = prefs.getBool('is_first_login') ?? true;
+      if (isFirstLogin) {
+        await context
+            .read<AchievementState>()
+            .unlockAchievement('first_login');
+        await prefs.setBool('is_first_login', false);
+      }
+
       return null;
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {
@@ -113,7 +126,8 @@ class LoginData extends ChangeNotifier {
 }
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  final bool showTutorial;
+  const LoginPage({super.key, this.showTutorial = false});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -126,13 +140,26 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
     _loginData.init();
+    if (widget.showTutorial) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => ShowCaseWidget.of(context).startShowCase([
+          _LoginViewState._emailKey,
+          _LoginViewState._passwordKey,
+          _LoginViewState._loginButtonKey,
+        ]),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider.value(
       value: _loginData,
-      child: const _LoginView(),
+      child: ShowCaseWidget(
+        builder: Builder(
+          builder: (context) => const _LoginView(),
+        ),
+      ),
     );
   }
 }
@@ -145,6 +172,10 @@ class _LoginView extends StatefulWidget {
 }
 
 class __LoginViewState extends State<_LoginView> {
+  static final _emailKey = GlobalKey();
+  static final _passwordKey = GlobalKey();
+  static final _loginButtonKey = GlobalKey();
+
   late TextEditingController _emailController;
   late LoginData _loginData;
 
@@ -211,9 +242,13 @@ class __LoginViewState extends State<_LoginView> {
                       ),
                       const SizedBox(height: 20),
 
-                      TextFormField(
-                        controller: _emailController,
-                        onChanged: (value) => loginData.setEmail(value),
+                      Showcase(
+                        key: _emailKey,
+                        title: 'Welcome!',
+                        description: "Let's see if you remember your details.",
+                        child: TextFormField(
+                          controller: _emailController,
+                          onChanged: (value) => loginData.setEmail(value),
                         style: const TextStyle(color: Colors.white),
                         decoration: InputDecoration(
                           labelText: "Email",
@@ -241,9 +276,12 @@ class __LoginViewState extends State<_LoginView> {
                       ),
                       const SizedBox(height: 16),
 
-                      TextFormField(
-                        obscureText: !loginData.isPasswordVisible,
-                        onChanged: (value) => loginData.setPassword(value),
+                      Showcase(
+                        key: _passwordKey,
+                        description: "Your password goes here.",
+                        child: TextFormField(
+                          obscureText: !loginData.isPasswordVisible,
+                          onChanged: (value) => loginData.setPassword(value),
                         style: const TextStyle(color: Colors.white),
                         decoration: InputDecoration(
                           labelText: "Password",
@@ -309,28 +347,40 @@ class __LoginViewState extends State<_LoginView> {
 
                       SizedBox(
                         width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            final String? error = await loginData.signIn();
-                            if (context.mounted) {
-                              if (error == null) {
-                                Navigator.pushNamed(context, '/home');
-                              } else {
-                                ScaffoldMessenger.of(
-                                  context,
-                                ).showSnackBar(SnackBar(content: Text(error)));
+                        child: Showcase(
+                          key: _loginButtonKey,
+                          title: 'All Set?',
+                          description:
+                              'Tap here to log in and start your journey.',
+                          child: BouncyButton(
+                            onPressed: () async {
+                              final String? error =
+                                  await loginData.signIn(context);
+                              if (context.mounted) {
+                                if (error == null) {
+                                  Navigator.pushNamed(context, '/home');
+                                } else {
+                                  ScaffoldMessenger.of(
+                                    context,
+                                  ).showSnackBar(
+                                      SnackBar(content: Text(error)));
+                                }
                               }
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Colors.black,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
+                            },
+                            child: ElevatedButton(
+                              onPressed: null, // Handled by wrapper
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: Colors.black,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                              child: const Text("Login"),
                             ),
                           ),
-                          child: const Text("Login"),
                         ),
                       ),
 

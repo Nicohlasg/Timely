@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../widgets/common/bouncy_button.dart';
 
 class RegisterData extends ChangeNotifier {
   String _name = '';
@@ -355,7 +356,7 @@ class _RegisterView extends StatelessWidget {
                         const SizedBox(height: 20),
                         SizedBox(
                           width: double.infinity,
-                          child: ElevatedButton(
+                          child: BouncyButton(
                             onPressed: () async {
                               final String? error = await registerData.signUp();
                               if (context.mounted) {
@@ -377,15 +378,19 @@ class _RegisterView extends StatelessWidget {
                                 }
                               }
                             },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: Colors.black,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
+                            child: ElevatedButton(
+                              onPressed: null, // Handled by wrapper
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: Colors.black,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
                               ),
+                              child: const Text("Register"),
                             ),
-                            child: const Text("Register"),
                           ),
                         ),
                         const SizedBox(height: 16),

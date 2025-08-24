@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../Theme/app_styles.dart';
+import 'animated_checkbox.dart';
 
 class AppCard extends StatelessWidget {
   final Widget child;
@@ -156,13 +157,11 @@ class TaskCard extends StatelessWidget {
         children: [
           Transform.scale(
             scale: 1.2,
-            child: Checkbox(
+            child: AnimatedCheckbox(
               value: isCompleted,
               onChanged: onToggle != null ? (val) => onToggle!() : null,
-              shape: const CircleBorder(),
               activeColor: style.primaryColor,
               checkColor: Colors.black,
-              side: BorderSide(color: style.onSurfaceColor),
             ),
           ),
           const SizedBox(width: 8),

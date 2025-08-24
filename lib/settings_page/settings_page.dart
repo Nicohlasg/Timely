@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../state/profile_state.dart';
 import '../profile_page/edit_profile_page.dart';
+import '../utils/widget_utils.dart';
 import 'appearance_page.dart';
 import 'sync_calendars_page.dart';
 
@@ -59,28 +60,22 @@ class SettingsPage extends StatelessWidget {
                     if (profileState.userProfile != null) {
                       Navigator.push(
                         context,
-                        MaterialPageRoute<void>(
-                          builder: (BuildContext context) => EditProfilePage(
+                        FadePageRoute(
+                          child: EditProfilePage(
                             userProfile: profileState.userProfile!,
                           ),
-                          fullscreenDialog: true,
                         ),
                       );
                     }
                   } else if (item.title == 'Appearance') {
                     Navigator.push(
                       context,
-                      MaterialPageRoute<void>(
-                        builder: (BuildContext context) => const AppearancePage(),
-                      ),
+                      FadePageRoute(child: const AppearancePage()),
                     );
-                  }
-                  else if (item.title == 'Sync Calendars') {
+                  } else if (item.title == 'Sync Calendars') {
                     Navigator.push(
                       context,
-                      MaterialPageRoute<void>(
-                        builder: (BuildContext context) => const SyncCalendarsPage(),
-                      ),
+                      FadePageRoute(child: const SyncCalendarsPage()),
                     );
                   }
                   else {

@@ -116,7 +116,7 @@ class TaskState extends ChangeNotifier {
         .delete();
   }
 
-  Future<void> toggleTaskCompletion(String taskId) async {
+  Future<bool> toggleTaskCompletion(String taskId) async {
     if (_auth.currentUser == null) {
       throw Exception('No user is currently signed in');
     }
@@ -128,6 +128,7 @@ class TaskState extends ChangeNotifier {
 
     final updatedTask = task.copyWith(isCompleted: !task.isCompleted);
     await updateTask(updatedTask);
+    return updatedTask.isCompleted;
   }
 
   // Method to create sample tasks for demonstration

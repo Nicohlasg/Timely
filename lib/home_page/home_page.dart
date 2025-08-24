@@ -1,8 +1,12 @@
+import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import '../calendar_page/calendar_page.dart';
 import '../profile_page/profile_page.dart';
+import '../state/achievement_state.dart';
 import '../settings_page/settings_page.dart';
 import 'dart:async';
+import 'add_task_page.dart';
+import 'all_tasks_page.dart';
 import 'dart:ui';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -193,12 +197,15 @@ class HomeView extends StatefulWidget {
 }
 
 class _HomeViewState extends State<HomeView> {
+  late ConfettiController _confettiController;
   Timer? _timer;
   final User? _user = FirebaseAuth.instance.currentUser;
 
   @override
   void initState() {
     super.initState();
+    _confettiController =
+        ConfettiController(duration: const Duration(seconds: 1));
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
         setState(() {});
@@ -208,6 +215,7 @@ class _HomeViewState extends State<HomeView> {
 
   @override
   void dispose() {
+    _confettiController.dispose();
     _timer?.cancel();
     super.dispose();
   }
@@ -228,6 +236,89 @@ class _HomeViewState extends State<HomeView> {
       masterEvents: masterEvents,
       from: now,
       to: ninetyDaysOut,
+    );
+  }
+
+  Widget _buildTasksHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          TextButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const AllTasksPage()),
+              );
+            },
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Row(
+              children: [
+                Text(
+                  "Upcoming Tasks",
+                  style: context.appStyle.headingStyle.copyWith(fontSize: 20),
+                ),
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.arrow_forward_ios,
+                  size: 14,
+                  color: Colors.white70,
+                ),
+              ],
+            ),
+          ),
+          AppButton(
+            text: "Add",
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const AddTaskPage()),
+              );
+            },
+            icon: Icons.add,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTasksLoadingShimmer() {
+    return Column(
+      children: List.generate(
+          3,
+          (index) => Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: AppCard(
+                  child: Row(
+                    children: [
+                      WidgetUtils.buildShimmerPlaceholder(
+                          width: 24,
+                          height: 24,
+                          borderRadius: BorderRadius.circular(12)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            WidgetUtils.buildShimmerPlaceholder(
+                                height: 16, width: 200),
+                            const SizedBox(height: 8),
+                            WidgetUtils.buildShimmerPlaceholder(
+                                height: 14, width: 150),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )),
     );
   }
 
@@ -255,120 +346,147 @@ class _HomeViewState extends State<HomeView> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: SafeArea(
-        child: ScrollConfiguration(
-          behavior: _NoScrollbarBehavior(),
-          child: ListView(
-            padding: const EdgeInsets.all(20.0),
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 24),
-              if (currentEvent.title != 'No Current Event') ...[
-                _buildCurrentEventCard(currentEvent, now),
-                const SizedBox(height: 24),
-              ],
-              _buildSectionHeader("Upcoming Events", () {
-                Navigator.push(
-                  context,
-                  PageRouteBuilder(
-                    pageBuilder: (context, animation, secondaryAnimation) =>
-                        const AllEventsPage(),
-                    transitionsBuilder:
-                        (context, animation, secondaryAnimation, child) {
-                      const begin = Offset(0.0, -1.0);
-                      const end = Offset.zero;
-                      const curve = Curves.easeInOut;
-                      final tween = Tween(
-                        begin: begin,
-                        end: end,
-                      ).chain(CurveTween(curve: curve));
-                      final offsetAnimation = animation.drive(tween);
-                      return SlideTransition(
-                        position: offsetAnimation,
-                        child: ClipRect(child: child),
+      body: Stack(
+        alignment: Alignment.topCenter,
+        children: [
+          SafeArea(
+            child: ScrollConfiguration(
+              behavior: _NoScrollbarBehavior(),
+              child: ListView(
+                padding: const EdgeInsets.all(20.0),
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: 24),
+                  if (currentEvent.title != 'No Current Event') ...[
+                    _buildCurrentEventCard(currentEvent, now),
+                    const SizedBox(height: 24),
+                  ],
+                  _buildSectionHeader("Upcoming Events", () {
+                    Navigator.push(
+                      context,
+                      PageRouteBuilder(
+                        pageBuilder:
+                            (context, animation, secondaryAnimation) =>
+                                const AllEventsPage(),
+                        transitionsBuilder: (context, animation,
+                            secondaryAnimation, child) {
+                          const begin = Offset(0.0, -1.0);
+                          const end = Offset.zero;
+                          const curve = Curves.easeInOut;
+                          final tween = Tween(
+                            begin: begin,
+                            end: end,
+                          ).chain(CurveTween(curve: curve));
+                          final offsetAnimation = animation.drive(tween);
+                          return SlideTransition(
+                            position: offsetAnimation,
+                            child: ClipRect(child: child),
+                          );
+                        },
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 16),
+                  ...upcomingEvents
+                      .take(3)
+                      .map((event) => _UpcomingEventCard(event: event)),
+                  const SizedBox(height: 24),
+                  // Only show Pending Polls section if there are pending polls
+                  if (upcomingPolls.isNotEmpty) ...[
+                    _buildSectionHeader("Pending Polls", () {
+                      // TODO: Navigate to a page with all polls
+                    }),
+                    const SizedBox(height: 16),
+                    ...upcomingPolls.map((poll) => _EventPollCard(poll: poll)),
+                    const SizedBox(height: 24),
+                  ],
+                  _buildTasksHeader(context),
+                  const SizedBox(height: 16),
+                  Consumer<TaskState>(
+                    builder: (context, taskState, child) {
+                      if (taskState.isLoading) {
+                        return _buildTasksLoadingShimmer();
+                      }
+
+                      final upcomingTasks = taskState.upcomingTasks;
+                      if (upcomingTasks.isEmpty) {
+                        return Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.white30),
+                          ),
+                          child: const Text(
+                            "No upcoming tasks. You're all caught up!",
+                            style: TextStyle(color: Colors.white70),
+                            textAlign: TextAlign.center,
+                          ),
+                        );
+                      }
+
+                      return Column(
+                        children: upcomingTasks
+                            .take(5)
+                            .map((task) => TaskCard(
+                                  title: task.title,
+                                  description: task.description.isNotEmpty
+                                      ? task.description
+                                      : null,
+                                  isCompleted: task.isCompleted,
+                                  onToggle: () async {
+                                    final isNowComplete = await context
+                                        .read<TaskState>()
+                                        .toggleTaskCompletion(task.id);
+                                    if (isNowComplete) {
+                                      _confettiController.play();
+                                      context
+                                          .read<AchievementState>()
+                                          .unlockAchievement(
+                                              'task_complete');
+                                    }
+                                  },
+                                  trailingWidget: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        task.dueDateText,
+                                        style: context.appStyle.subheadingStyle
+                                            .copyWith(fontSize: 14),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      if (task.priority == TaskPriority.high)
+                                        PriorityTag.high(),
+                                      if (task.priority ==
+                                          TaskPriority.medium)
+                                        PriorityTag.medium(),
+                                      if (task.priority == TaskPriority.low)
+                                        PriorityTag.low(),
+                                    ],
+                                  ),
+                                ))
+                            .toList(),
                       );
                     },
                   ),
-                );
-              }),
-              const SizedBox(height: 16),
-              ...upcomingEvents
-                  .take(3)
-                  .map((event) => _UpcomingEventCard(event: event)),
-              const SizedBox(height: 24),
-              // Only show Pending Polls section if there are pending polls
-              if (upcomingPolls.isNotEmpty) ...[
-                _buildSectionHeader("Pending Polls", () {
-                  // TODO: Navigate to a page with all polls
-                }),
-                const SizedBox(height: 16),
-                ...upcomingPolls.map((poll) => _EventPollCard(poll: poll)),
-                const SizedBox(height: 24),
-              ],
-              WidgetUtils.buildSectionHeader(
-                "Upcoming Tasks",
-                onActionPressed: () {
-                  // TODO: Navigate to a page with all tasks
-                },
+                ],
               ),
-              const SizedBox(height: 16),
-              Consumer<TaskState>(
-                builder: (context, taskState, child) {
-                  if (taskState.isLoading) {
-                    return const Center(
-                      child: CircularProgressIndicator(color: Colors.white),
-                    );
-                  }
-                  
-                  final upcomingTasks = taskState.upcomingTasks;
-                  if (upcomingTasks.isEmpty) {
-                    return Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white30),
-                      ),
-                      child: const Text(
-                        "No upcoming tasks. You're all caught up!",
-                        style: TextStyle(color: Colors.white70),
-                        textAlign: TextAlign.center,
-                      ),
-                    );
-                  }
-                  
-                  return Column(
-                    children: upcomingTasks
-                        .take(5)
-                        .map((task) => TaskCard(
-                          title: task.title,
-                          description: task.description.isNotEmpty ? task.description : null,
-                          isCompleted: task.isCompleted,
-                          onToggle: () => context.read<TaskState>().toggleTaskCompletion(task.id),
-                          trailingWidget: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                task.dueDateText,
-                                style: context.appStyle.subheadingStyle.copyWith(fontSize: 14),
-                              ),
-                              const SizedBox(height: 4),
-                              if (task.priority == TaskPriority.high)
-                                PriorityTag.high(),
-                              if (task.priority == TaskPriority.medium)
-                                PriorityTag.medium(),
-                              if (task.priority == TaskPriority.low)
-                                PriorityTag.low(),
-                            ],
-                          ),
-                        ))
-                        .toList(),
-                  );
-                },
-              ),
+            ),
+          ),
+          ConfettiWidget(
+            confettiController: _confettiController,
+            blastDirectionality: BlastDirectionality.explosive,
+            shouldLoop: false,
+            colors: const [
+              Colors.green,
+              Colors.blue,
+              Colors.pink,
+              Colors.orange,
+              Colors.purple
             ],
           ),
-        ),
+        ],
       ),
     );
   }
@@ -438,8 +556,7 @@ class _HomeViewState extends State<HomeView> {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                        builder: (context) => const ProposalsInboxPage()),
+                    FadePageRoute(child: const ProposalsInboxPage()),
                   );
                 },
                 tooltip: 'Proposals Inbox',

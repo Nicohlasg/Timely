@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'onboarding/onboarding_page.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:month_year_picker/month_year_picker.dart';
 import 'package:provider/provider.dart';
@@ -31,6 +33,7 @@ import 'state/calendar_state.dart';
 import 'state/group_state.dart';
 import 'state/profile_state.dart';
 import 'state/proposal_state.dart';
+import 'state/achievement_state.dart';
 import 'state/notification_state.dart';
 import 'state/task_state.dart';
 
@@ -82,6 +85,7 @@ class MainApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ProposalState()),
         ChangeNotifierProvider(create: (_) => NotificationState()),
         ChangeNotifierProvider(create: (_) => TaskState()),
+        ChangeNotifierProvider(create: (_) => AchievementState()),
         ChangeNotifierProvider(create: (_) => AppStyleProvider()),
       ],
       child: const MyApp(),
@@ -200,21 +204,60 @@ class _UndoSnackBarHandlerState extends State<UndoSnackBarHandler> {
   }
 }
 
-class AuthenticationWrapper extends StatelessWidget {
+class AuthenticationWrapper extends StatefulWidget {
   const AuthenticationWrapper({super.key});
 
   @override
+  State<AuthenticationWrapper> createState() => _AuthenticationWrapperState();
+}
+
+class _AuthenticationWrapperState extends State<AuthenticationWrapper> {
+  bool _isLoading = true;
+  bool _hasCompletedOnboarding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkOnboardingStatus();
+  }
+
+  Future<void> _checkOnboardingStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _hasCompletedOnboarding =
+            prefs.getBool('has_completed_onboarding') ?? false;
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+        if (snapshot.connectionState == ConnectionState.active) {
+          if (snapshot.hasData) {
+            return const HomePage();
+          }
+          // User is not logged in, decide between onboarding and login
+          return _hasCompletedOnboarding
+              ? const LoginPage()
+              : const OnboardingPage();
         }
-        if (snapshot.hasData) {
-          return const HomePage();
-        }
-        return const LoginPage();
+        // Show a loading indicator while waiting for auth state
+        return const Scaffold(
+          backgroundColor: Colors.black,
+          body: Center(child: CircularProgressIndicator()),
+        );
       },
     );
   }
