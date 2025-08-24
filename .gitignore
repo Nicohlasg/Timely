@@ -48,6 +48,5 @@ firebase_credentials.json
 credentials.json
 google-credentials.json
 google-services.json
-private_key.pem
 lib/firebase_options.dart
 android/app/google-services.json
